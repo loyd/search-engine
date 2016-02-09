@@ -52,9 +52,10 @@ const indices = [
 const stopwords = new Set(enStopwords.concat(ruStopwords));
 
 export default class Crawler {
-  constructor(dbname) {
+  constructor(dbname, concurrency=5) {
     this.cache = new Set;
     this.db = null;
+    this.concurrency = concurrency;
 
     this.tokenizer = new natural.AggressiveTokenizerRu;
     this.enStemmer = natural.PorterStemmer;
@@ -70,16 +71,16 @@ export default class Crawler {
     });
   }
 
-  crawl(pages, depth=3, concurrency=5) {
+  crawl(pages, depth=3) {
     let queue = new Queue(pages.map(page => ({url: page, depth})));
 
     pages.forEach(p => this.cache.add(p));
 
-    for (let i = 0; i < concurrency; ++i)
+    for (let i = 0; i < this.concurrency; ++i)
       co.call(this, function*() {
         for (;;) {
           let page = yield queue.dequeue();
-          let links = yield this.visit(page.url);
+          let links = yield* this.visit(page.url);
 
           if (page.depth > 1)
             for (let link of links)
@@ -91,7 +92,7 @@ export default class Crawler {
       }).catch(console.error);
   }
 
-  * visit(page) {
+  *visit(page) {
     try {
       let data = yield request(page);
       var $ = cheerio.load(data);
@@ -100,16 +101,16 @@ export default class Crawler {
     }
 
     try {
-      return this.process(page, $);
+      return yield* this.process(page, $);
     } catch (e) {
       console.error(`Error while processing ${page}: ${e}`);
       return [];
     }
   }
 
-  process(page, $) {
+  *process(page, $) {
     let text = this.grabText($('html > body').get());
-    this.index(page, text);
+    yield* this.index(page, text);
 
     let links = [];
 
@@ -129,9 +130,28 @@ export default class Crawler {
     return links;
   }
 
-  index(page, text) {
+  *index(page, text) {
+    let {db} = this;
     let words = this.tokenizeAndStem(text);
-    console.log(page);
+
+    let {lastID: urlID} = yield db.run('insert into urllist(url) values (?)', page);
+
+    let [$selectWord, $insertWord, $insertLoc] = yield [
+      db.prepare('select rowid from wordlist where word=?'),
+      db.prepare('insert into wordlist(word) values (?)'),
+      db.prepare('insert into wordlocation(urlid, wordid, location) values (?, ?, ?)')
+    ];
+
+    console.log(new Date, page);
+
+    for (let [loc, word] of words.entries()) {
+      //#TODO: ensure that there is thread-safety.
+      yield db.run('begin');
+      let result = yield $selectWord.get(word);
+      let wordID = result ? result.rowid : (yield $insertWord.run(word)).lastID;
+      yield $insertLoc.run(urlID, wordID, loc);
+      yield db.run('commit');
+    }
   }
 
   grabText(elems) {
@@ -167,5 +187,5 @@ export default class Crawler {
 
 co(function*() {
   let crawler = yield new Crawler('se.db');
-  crawler.crawl(['https://learn.javascript.ru/promise']);
+  crawler.crawl(['https://learn.javascript.ru/promise'], 3);
 }).catch(console.error);
