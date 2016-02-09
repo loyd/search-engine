@@ -6,6 +6,10 @@ import co from 'co';
 import request from 'request-promise';
 import cheerio from 'cheerio';
 import sqlite3 from 'co-sqlite3';
+import natural from 'natural';
+
+import {words as enStopwords} from 'natural/lib/natural/util/stopwords';
+import {words as ruStopwords} from 'natural/lib/natural/util/stopwords_ru';
 
 
 class Queue {
@@ -45,10 +49,16 @@ const indices = [
   'urlfromidx on link(fromid)'
 ];
 
+const stopwords = new Set(enStopwords.concat(ruStopwords));
+
 export default class Crawler {
   constructor(dbname) {
     this.cache = new Set;
     this.db = null;
+
+    this.tokenizer = new natural.AggressiveTokenizerRu;
+    this.enStemmer = natural.PorterStemmer;
+    this.ruStemmer = natural.PorterStemmerRu;
 
     return co.call(this, function*() {
       let db = this.db = yield sqlite3(dbname);
@@ -98,7 +108,7 @@ export default class Crawler {
   }
 
   process(page, $) {
-    let text = $('html > body').text().toLowerCase();
+    let text = this.grabText($('html > body').get());
     this.index(page, text);
 
     let links = [];
@@ -111,9 +121,7 @@ export default class Crawler {
         return;
 
       this.cache.add(link);
-
-      let text = $(a).text().toLowerCase();
-      this.addLink(page, link, text);
+      this.addLink(page, link);
 
       links.push(link);
     });
@@ -122,10 +130,39 @@ export default class Crawler {
   }
 
   index(page, text) {
+    let words = this.tokenizeAndStem(text);
     console.log(page);
   }
 
-  addLink(from, to, text) {}
+  grabText(elems) {
+    let result = '';
+
+    for (let elem of elems)
+      if (elem.type === 'text')
+        result += elem.data + ' ';
+      else if (elem.children && elem.type !== 'comment')
+        result += this.grabText(elem.children) + '\n';
+
+    return result;
+  }
+
+  tokenizeAndStem(text) {
+    let words = this.tokenizer.tokenize(text);
+    let stemmed = [];
+
+    for (let word of words) {
+      word = word.toLowerCase();
+
+      if (!stopwords.has(word)) {
+        let stemmer = word.charCodeAt(0) < 128 ? this.enStemmer : this.ruStemmer;
+        stemmed.push(stemmer.stem(word));
+      }
+    }
+
+    return stemmed;
+  }
+
+  addLink(from, to) {}
 }
 
 co(function*() {
