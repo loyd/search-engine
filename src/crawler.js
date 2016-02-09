@@ -5,7 +5,7 @@ import url from 'url';
 import co from 'co';
 import request from 'request-promise';
 import cheerio from 'cheerio';
-
+import sqlite3 from 'co-sqlite3';
 
 
 class Queue {
@@ -29,9 +29,39 @@ class Queue {
   }
 }
 
+const tables = [
+  'urllist(url)',
+  'wordlist(word)',
+  'wordlocation(urlid, wordid, location)',
+  'link(fromid, toid)',
+  'linkwords(wordid, linkid)'
+];
+
+const indices = [
+  'urlidx on urllist(url)',
+  'wordidx on wordlist(word)',
+  'wordurlidx on wordlocation(wordid)',
+  'urltoidx on link(toid)',
+  'urlfromidx on link(fromid)'
+];
+
 export default class Crawler {
-  constructor(db) {
-    this.cache = new Set;
+  constructor(dbname) {
+    let self = this;
+
+    self.cache = new Set;
+
+    return co(function*() {
+      let db = yield sqlite3(dbname);
+
+      for (let table of tables)
+        db.run(`create table if not exists ${table}`);
+
+      for (let index of indices)
+        db.run(`create index if not exists ${index}`);
+
+      return self;
+    });
   }
 
   crawl(pages, depth=3, concurrency=5) {
@@ -56,7 +86,7 @@ export default class Crawler {
       }).catch(console.error);
   }
 
-  *visit(page) {
+  * visit(page) {
     try {
       let data = yield request(page);
       var $ = cheerio.load(data);
@@ -103,5 +133,7 @@ export default class Crawler {
   addLink(from, to, text) {}
 }
 
-let c = new Crawler;
-c.crawl(['https://learn.javascript.ru/promise'])
+co(function*() {
+  let crawler = yield new Crawler('se.db');
+  crawler.crawl(['https://learn.javascript.ru/promise']);
+}).catch(console.error);
