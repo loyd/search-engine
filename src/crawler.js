@@ -47,34 +47,29 @@ const indices = [
 
 export default class Crawler {
   constructor(dbname) {
-    let self = this;
+    this.cache = new Set;
+    this.db = null;
 
-    self.cache = new Set;
+    return co.call(this, function*() {
+      let db = this.db = yield sqlite3(dbname);
 
-    return co(function*() {
-      let db = yield sqlite3(dbname);
+      yield tables.map(tbl => db.run(`create table if not exists ${tbl}`));
+      yield indices.map(idx => db.run(`create index if not exists ${idx}`));
 
-      for (let table of tables)
-        db.run(`create table if not exists ${table}`);
-
-      for (let index of indices)
-        db.run(`create index if not exists ${index}`);
-
-      return self;
+      return this;
     });
   }
 
   crawl(pages, depth=3, concurrency=5) {
-    let self = this;
     let queue = new Queue(pages.map(page => ({url: page, depth})));
 
     pages.forEach(p => this.cache.add(p));
 
     for (let i = 0; i < concurrency; ++i)
-      co(function*() {
+      co.call(this, function*() {
         for (;;) {
           let page = yield queue.dequeue();
-          let links = yield self.visit(page.url);
+          let links = yield this.visit(page.url);
 
           if (page.depth > 1)
             for (let link of links)
