@@ -30,11 +30,15 @@ class Queue {
 }
 
 export default class Crawler {
-  constructor(db) {}
+  constructor(db) {
+    this.cache = new Set;
+  }
 
   crawl(pages, depth=3, concurrency=5) {
     let self = this;
     let queue = new Queue(pages.map(page => ({url: page, depth})));
+
+    pages.forEach(p => this.cache.add(p));
 
     for (let i = 0; i < concurrency; ++i)
       co(function*() {
@@ -78,8 +82,10 @@ export default class Crawler {
       let rel = $(a).attr('href');
       let link = url.resolve(page, rel).split('#')[0];
 
-      if (!link.startsWith('http') || this.is_indexed(link))
+      if (!link.startsWith('http') || this.cache.has(link))
         return;
+
+      this.cache.add(link);
 
       let text = $(a).text().toLowerCase();
       this.addLink(page, link, text);
@@ -95,10 +101,6 @@ export default class Crawler {
   }
 
   addLink(from, to, text) {}
-
-  is_indexed(page) {
-    return false;
-  }
 }
 
 let c = new Crawler;
