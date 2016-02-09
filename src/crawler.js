@@ -7,20 +7,49 @@ import request from 'request-promise';
 import cheerio from 'cheerio';
 
 
+
+class Queue {
+  constructor(initial) {
+    this.backend = initial;
+    this.waiters = [];
+  }
+
+  enqueue(item) {
+    if (this.waiters.length)
+      this.waiters.pop()(item);
+    else
+      this.backend.push(item);
+  }
+
+  dequeue() {
+    if (this.backend.length === 0)
+      return new Promise(resolve => this.waiters.push(resolve));
+
+    return Promise.resolve(this.backend.shift());
+  }
+}
+
 export default class Crawler {
   constructor(db) {}
 
-  crawl(pages, depth=3) {
-    if (depth <= 0)
-      return;
-
+  crawl(pages, depth=3, concurrency=5) {
     let self = this;
+    let queue = new Queue(pages.map(page => ({url: page, depth})));
 
-    co(function*() {
-      let result = yield pages.map(u => self.visit(u));
-      let flatten = [].concat(...result);
-      self.crawl(flatten, depth-1);
-    }).catch(console.error);
+    for (let i = 0; i < concurrency; ++i)
+      co(function*() {
+        for (;;) {
+          let page = yield queue.dequeue();
+          let links = yield self.visit(page.url);
+
+          if (page.depth > 1)
+            for (let link of links)
+              queue.enqueue({
+                url: link,
+                depth: page.depth - 1
+              });
+        }
+      }).catch(console.error);
   }
 
   *visit(page) {
@@ -71,3 +100,6 @@ export default class Crawler {
     return false;
   }
 }
+
+let c = new Crawler;
+c.crawl(['https://learn.javascript.ru/promise'])
