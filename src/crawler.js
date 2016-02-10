@@ -6,10 +6,8 @@ import co from 'co';
 import request from 'request-promise';
 import cheerio from 'cheerio';
 import sqlite3 from 'co-sqlite3';
-import natural from 'natural';
 
-import {words as enStopwords} from 'natural/lib/natural/util/stopwords';
-import {words as ruStopwords} from 'natural/lib/natural/util/stopwords_ru';
+import Stemmer from './stemmer';
 
 
 const tables = [
@@ -28,16 +26,12 @@ const indices = [
   'urlfromidx on link(fromid)'
 ];
 
-const stopwords = new Set(enStopwords.concat(ruStopwords));
-
 export default class Crawler {
   constructor(dbname) {
     this.cache = null;
     this.db = null;
 
-    this.tokenizer = new natural.AggressiveTokenizerRu;
-    this.enStemmer = natural.PorterStemmer;
-    this.ruStemmer = natural.PorterStemmerRu;
+    this.stemmer = new Stemmer;
 
     return co.call(this, function*() {
       let db = this.db = yield sqlite3(dbname);
@@ -111,8 +105,6 @@ export default class Crawler {
         return;
 
       this.cache.add(link);
-      this.addLink(page, link);
-
       links.push(link);
     });
 
@@ -121,7 +113,7 @@ export default class Crawler {
 
   *index(page, text) {
     let {db} = this;
-    let words = this.tokenizeAndStem(text);
+    let words = this.stemmer.tokenizeAndStem(text);
 
     let [$selectWord, $insertWord, $insertLoc] = yield [
       db.prepare('select rowid from wordlist where word=?'),
@@ -152,24 +144,6 @@ export default class Crawler {
 
     return result;
   }
-
-  tokenizeAndStem(text) {
-    let words = this.tokenizer.tokenize(text);
-    let stemmed = [];
-
-    for (let word of words) {
-      word = word.toLowerCase();
-
-      if (!stopwords.has(word)) {
-        let stemmer = word.charCodeAt(0) < 128 ? this.enStemmer : this.ruStemmer;
-        stemmed.push(stemmer.stem(word));
-      }
-    }
-
-    return stemmed;
-  }
-
-  addLink(from, to) {}
 }
 
 co(function*() {
