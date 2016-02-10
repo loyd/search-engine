@@ -20,7 +20,7 @@ export default class Stemmer {
     for (let word of words) {
       word = word.toLowerCase();
 
-      if (!stopwords.has(word)) {
+      if (!stopwords.has(word) && word.length < 50) {
         let stemmer = word.charCodeAt(0) < 128 ? this.enStemmer : this.ruStemmer;
         stemmed.push(stemmer.stem(word));
       }
