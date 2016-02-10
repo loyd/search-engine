@@ -134,24 +134,22 @@ export default class Crawler {
     let {db} = this;
     let words = this.tokenizeAndStem(text);
 
-    let {lastID: urlID} = yield db.run('insert into urllist(url) values (?)', page);
-
     let [$selectWord, $insertWord, $insertLoc] = yield [
       db.prepare('select rowid from wordlist where word=?'),
       db.prepare('insert into wordlist(word) values (?)'),
       db.prepare('insert into wordlocation(urlid, wordid, location) values (?, ?, ?)')
     ];
 
-    console.log(new Date, page);
+    yield db.run('begin');
+    let {lastID: urlID} = yield db.run('insert into urllist(url) values (?)', page);
 
     for (let [loc, word] of words.entries()) {
       //#TODO: ensure that there is thread-safety.
-      yield db.run('begin');
       let result = yield $selectWord.get(word);
       let wordID = result ? result.rowid : (yield $insertWord.run(word)).lastID;
       yield $insertLoc.run(urlID, wordID, loc);
-      yield db.run('commit');
     }
+    yield db.run('commit');
   }
 
   grabText(elems) {
@@ -186,6 +184,6 @@ export default class Crawler {
 }
 
 co(function*() {
-  let crawler = yield new Crawler('se.db');
+  let crawler = yield new Crawler('se.db', 1);
   crawler.crawl(['https://learn.javascript.ru/promise'], 3);
 }).catch(console.error);
