@@ -62,7 +62,6 @@ export default class Crawler {
     co.call(this, function*() {
       let page;
       while (page = queue.shift()) {
-        console.log(page.url);
         let links = yield* this.visit(page.url);
 
         if (page.depth > 1)
@@ -77,8 +76,26 @@ export default class Crawler {
 
   *visit(page) {
     try {
-      let data = yield request(page);
-      var $ = cheerio.load(data);
+      let {body, headers} = yield request({
+        url: page,
+        headers: {
+          'accept': "application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8",
+          'accept-language': 'ru, en;q=0.8',
+          'accept-charset': 'utf-8',
+          'user-agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_4; en-US) ' +
+                        'AppleWebKit/534.7 (KHTML, like Gecko) Chrome/7.0.517.41 Safari/534.7',
+        },
+        gzip: true,
+        resolveWithFullResponse: true
+      });
+
+      let acceptType = (headers['content-type'] || '').indexOf('html') > -1;
+      let acceptLang = /en|ru/i.test(headers['content-language'] || 'en');
+
+      if (!acceptType || !acceptLang)
+        return [];
+
+      var $ = cheerio.load(body);
     } catch (_) {
       return [];
     }
@@ -121,6 +138,8 @@ export default class Crawler {
       db.prepare('insert into wordlocation(urlid, wordid, location) values (?, ?, ?)')
     ];
 
+    console.log(decodeURI(page));
+
     yield db.run('begin');
     let {lastID: urlID} = yield db.run('insert into urllist(url) values (?)', page);
 
@@ -148,5 +167,5 @@ export default class Crawler {
 
 co(function*() {
   let crawler = yield new Crawler('se.db');
-  crawler.crawl(['https://learn.javascript.ru/promise']);
+  crawler.crawl([encodeURI('https://ru.wikipedia.org/wiki/Программирование')]);
 }).catch(console.error);
