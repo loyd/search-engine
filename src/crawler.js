@@ -21,7 +21,9 @@ const tables = [
 const indices = [
   'urlidx on urllist(url)',
   'wordidx on wordlist(word)',
-  'wordurlidx on wordlocation(wordid)',
+  'urllocidx on wordlocation(urlid)',
+  'wordlocidx on wordlocation(wordid)',
+  'wordurllocidx on wordlocation(wordid, urlid)',
   'urltoidx on link(toid)',
   'urlfromidx on link(fromid)'
 ];
