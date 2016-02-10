@@ -32,7 +32,7 @@ const stopwords = new Set(enStopwords.concat(ruStopwords));
 
 export default class Crawler {
   constructor(dbname) {
-    this.cache = new Set;
+    this.cache = null;
     this.db = null;
 
     this.tokenizer = new natural.AggressiveTokenizerRu;
@@ -45,17 +45,30 @@ export default class Crawler {
       yield tables.map(tbl => db.run(`create table if not exists ${tbl}`));
       yield indices.map(idx => db.run(`create index if not exists ${idx}`));
 
+      let urls = yield db.all('select url from urllist');
+      this.cache = new Set(urls.map(u => u.url));
+
       return this;
     });
   }
 
   crawl(pages, depth=3) {
-    let queue = pages.map(page => ({url: page, depth}));
-    pages.forEach(p => this.cache.add(p));
+    let queue = [];
+
+    for (let page of pages) {
+      page = page.split('#')[0];
+
+      if (this.cache.has(page))
+        continue;
+
+      queue.push({url: page, depth});
+      this.cache.add(page);
+    }
 
     co.call(this, function*() {
-      for (;;) {
-        let page = yield queue.shift();
+      let page;
+      while (page = queue.shift()) {
+        console.log(page.url);
         let links = yield* this.visit(page.url);
 
         if (page.depth > 1)
