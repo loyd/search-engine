@@ -12,27 +12,6 @@ import {words as enStopwords} from 'natural/lib/natural/util/stopwords';
 import {words as ruStopwords} from 'natural/lib/natural/util/stopwords_ru';
 
 
-class Queue {
-  constructor(initial) {
-    this.backend = initial;
-    this.waiters = [];
-  }
-
-  enqueue(item) {
-    if (this.waiters.length)
-      this.waiters.pop()(item);
-    else
-      this.backend.push(item);
-  }
-
-  dequeue() {
-    if (this.backend.length === 0)
-      return new Promise(resolve => this.waiters.push(resolve));
-
-    return Promise.resolve(this.backend.shift());
-  }
-}
-
 const tables = [
   'urllist(url)',
   'wordlist(word)',
@@ -52,10 +31,9 @@ const indices = [
 const stopwords = new Set(enStopwords.concat(ruStopwords));
 
 export default class Crawler {
-  constructor(dbname, concurrency=5) {
+  constructor(dbname) {
     this.cache = new Set;
     this.db = null;
-    this.concurrency = concurrency;
 
     this.tokenizer = new natural.AggressiveTokenizerRu;
     this.enStemmer = natural.PorterStemmer;
@@ -72,24 +50,22 @@ export default class Crawler {
   }
 
   crawl(pages, depth=3) {
-    let queue = new Queue(pages.map(page => ({url: page, depth})));
-
+    let queue = pages.map(page => ({url: page, depth}));
     pages.forEach(p => this.cache.add(p));
 
-    for (let i = 0; i < this.concurrency; ++i)
-      co.call(this, function*() {
-        for (;;) {
-          let page = yield queue.dequeue();
-          let links = yield* this.visit(page.url);
+    co.call(this, function*() {
+      for (;;) {
+        let page = yield queue.shift();
+        let links = yield* this.visit(page.url);
 
-          if (page.depth > 1)
-            for (let link of links)
-              queue.enqueue({
-                url: link,
-                depth: page.depth - 1
-              });
-        }
-      }).catch(console.error);
+        if (page.depth > 1)
+          for (let link of links)
+            queue.push({
+              url: link,
+              depth: page.depth - 1
+            });
+      }
+    }).catch(console.error);
   }
 
   *visit(page) {
@@ -184,6 +160,6 @@ export default class Crawler {
 }
 
 co(function*() {
-  let crawler = yield new Crawler('se.db', 1);
-  crawler.crawl(['https://learn.javascript.ru/promise'], 3);
+  let crawler = yield new Crawler('se.db');
+  crawler.crawl(['https://learn.javascript.ru/promise']);
 }).catch(console.error);
