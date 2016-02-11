@@ -24,6 +24,7 @@ const indices = [
   'urllocidx on wordlocation(urlid)',
   'wordlocidx on wordlocation(wordid)',
   'wordurllocidx on wordlocation(wordid, urlid)',
+  'coverlocidx on wordlocation(wordid, urlid, location)',
   'urltoidx on link(toid)',
   'urlfromidx on link(fromid)'
 ];
