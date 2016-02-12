@@ -20,8 +20,8 @@ export default class Searcher {
   }
 
   *search(query) {
-    let wordIDs = yield* this.matchWordIDs(query);
-    let pages = yield* this.pickPages(wordIDs);
+    let words = yield* this.matchWords(query);
+    let pages = yield* this.pickPages(words);
 
     let [maxCount, maxLocation, maxDistance] = [1, 1, 1];
 
@@ -47,8 +47,8 @@ export default class Searcher {
       scores.push(score);
     }
 
-    let $url = yield this.db.prepare('select url from urllist where rowid = ?');
-    let result = yield pages.map(page => $url.get(page.urlid));
+    let $url = yield this.db.prepare('select url, title from page where rowid = ?');
+    let result = yield pages.map(page => $url.get(page.pageid));
 
     for (let [i, res] of result.entries())
       res.score = scores[i];
@@ -56,40 +56,39 @@ export default class Searcher {
     return result.sort((a, b) => b.score - a.score);
   }
 
-  *matchWordIDs(query) {
-    let words = this.stemmer.tokenizeAndStem(query);
+  *matchWords(query) {
+    let stems = this.stemmer.tokenizeAndStem(query);
 
+    if (stems.length === 0)
+      return [];
+
+    let join = stems.map(w => `'${w}'`).join(',');
+
+    return yield this.db.all(`select rowid, count from word where stem in (${join})`);
+  }
+
+  *pickPages(words) {
     if (words.length === 0)
       return [];
 
-    let join = words.map(w => `'${w}'`).join(',');
+    words.sort((a, b) => a.count - b.count);
 
-    let wordRows = yield this.db.all(`select rowid from wordlist where word in (${join})`);
-    return wordRows.map(r => r.rowid);
-  }
+    let [select, from, where, sum, dist] = ['pageid', 'location l0', '', '', ''];
 
-  *pickPages(wordIDs) {
-    if (wordIDs.length === 0)
-      return [];
-
-    let [select, from, where, sum, dist] = ['w0.urlid', '', '', '', ''];
-
-    for (let [i, id] of wordIDs.entries()) {
+    for (let [i, {rowid}] of words.entries()) {
       if (i > 0) {
-        from += ', ';
-        where += ` and w${i-1}.urlid = w${i}.urlid and `;
+        from += ` join location l${i} using (pageid)`;
+        where += ' and ';
         sum += ' + ';
 
         if (i > 1)
           dist += ' + ';
 
-        dist += `abs(w${i}.location - w${i-1}.location)`;
+        dist += `abs(l${i}.position - l${i-1}.position)`;
       }
 
-      select += `, w${i}.location`;
-      from += `wordlocation w${i}`;
-      where += `w${i}.wordid = ${id}`;
-      sum += `w${i}.location`;
+      where += `l${i}.wordid = ${rowid}`;
+      sum += `l${i}.position`;
     }
 
     // For frequency score.
@@ -99,7 +98,7 @@ export default class Searcher {
     // For distance score.
     select += `, min(${dist || '1'}) as distance`;
 
-    let fullQuery = `select ${select}\nfrom ${from}\nwhere ${where}\ngroup by w0.urlid`;
+    let fullQuery = `select ${select}\nfrom ${from}\nwhere ${where}\ngroup by pageid`;
     console.log(fullQuery);
 
     return yield this.db.all(fullQuery);
