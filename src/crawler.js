@@ -13,7 +13,7 @@ import Stemmer from './stemmer';
 const tables = [
   'page(url, title)',
   'word(stem, count)',
-  'location(pageid, wordid, position, primary key(wordid, pageid, position)',
+  'location(pageid, wordid, position, primary key(wordid, pageid, position) without rowid',
   'link(fromid, toid, wordid)'
 ];
 
