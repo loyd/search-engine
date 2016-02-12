@@ -11,22 +11,17 @@ import Stemmer from './stemmer';
 
 
 const tables = [
-  'urllist(url)',
-  'wordlist(word)',
-  'wordlocation(urlid, wordid, location)',
-  'link(fromid, toid)',
-  'linkwords(wordid, linkid)'
+  'page(url, title)',
+  'word(stem, count)',
+  'location(pageid, wordid, position, primary key(wordid, pageid, position)',
+  'link(fromid, toid, wordid)'
 ];
 
 const indices = [
-  'urlidx on urllist(url)',
-  'wordidx on wordlist(word)',
-  'urllocidx on wordlocation(urlid)',
-  'wordlocidx on wordlocation(wordid)',
-  'wordurllocidx on wordlocation(wordid, urlid)',
-  'coverlocidx on wordlocation(wordid, urlid, location)',
-  'urltoidx on link(toid)',
-  'urlfromidx on link(fromid)'
+  'urlidx on page(url)',
+  'stemidx on word(stem)',
+  'toididx on link(toid)',
+  'fromididx on link(fromid)'
 ];
 
 export default class Crawler {
@@ -42,45 +37,52 @@ export default class Crawler {
       yield tables.map(tbl => db.run(`create table if not exists ${tbl}`));
       yield indices.map(idx => db.run(`create index if not exists ${idx}`));
 
-      let urls = yield db.all('select url from urllist');
+      let urls = yield db.all('select url from page');
       this.cache = new Set(urls.map(u => u.url));
 
       return this;
     });
   }
 
-  crawl(pages, depth=3) {
-    let queue = [];
+  *crawl(urls, limit=Infinity, depth=3) {
+    let pages = [];
 
-    for (let page of pages) {
-      page = page.split('#')[0];
+    for (let url of urls) {
+      url = this.stripUrl(url);
 
-      if (this.cache.has(page))
+      if (this.cache.has(url))
         continue;
 
-      queue.push({url: page, depth});
-      this.cache.add(page);
+      pages.push({
+        url: url,
+        id: yield* this.takePageID(url)
+      });
+
+      this.cache.add(url);
     }
 
-    co.call(this, function*() {
-      let page;
-      while (page = queue.shift()) {
-        let links = yield* this.visit(page.url);
+    let visited = 0;
 
-        if (page.depth > 1)
-          for (let link of links)
-            queue.push({
-              url: link,
-              depth: page.depth - 1
-            });
+    all: for (let i = 0; i < depth; ++i) {
+      let page, next = [];
+
+      while (page = pages.shift()) {
+        if (visited >= limit)
+          break all;
+
+        let derived = yield* this.visit(page);
+        next.push(...derived);
+        ++visited;
       }
-    }).catch(console.error);
+
+      pages = next;
+    }
   }
 
   *visit(page) {
     try {
       let {body, headers} = yield request({
-        url: page,
+        url: page.url,
         headers: {
           'accept': "application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8",
           'accept-language': 'ru, en;q=0.8',
@@ -106,53 +108,89 @@ export default class Crawler {
     try {
       return yield* this.process(page, $);
     } catch (e) {
-      console.error(`Error while processing ${page}: ${e}`);
+      console.error(`Error while processing ${page.url}: ${e}`);
       return [];
     }
   }
 
   *process(page, $) {
-    let text = this.grabText($('html > body').get());
-    yield* this.index(page, text);
+    yield this.db.run('begin');
 
+    let [links] = yield [
+      this.indexLinks(page, $),
+      this.indexBody(page, $)
+    ];
+
+    yield this.db.run('commit');
+
+    console.log(decodeURI(page.url));
+    return links;
+  }
+
+  *indexBody(page, $) {
+    let {db} = this;
+    let title = $('title').text().slice(0, 256);
+    let text = this.grabText($('html > body').get());
+    let stems = this.stemmer.tokenizeAndStem(text);
+
+    let [$insertLocation, $updateWord] = yield [
+      db.prepare(`insert into location(pageid, wordid, position) values (${page.id}, ?, ?)`),
+      db.prepare('update word set count = count + 1 where rowid = ?')
+    ];
+
+    yield db.run('update page set title = ? where rowid = ?', title, page.id);
+
+    for (let [position, stem] of stems.entries()) {
+      let wordID = yield* this.takeWordID(stem);
+      yield [
+        $updateWord.run(wordID),
+        $insertLocation.run(wordID, position)
+      ];
+    }
+  }
+
+  *indexLinks(page, $) {
+    let query = `insert into link(fromid, toid, wordid)
+                 values(${page.id}, ?, (select rowid from word where stem = ?))`;
+
+    let $insert = yield this.db.prepare(query);
     let links = [];
 
-    $('a[href]').each((_, a) => {
+    for (let a of $('a[href]').get()) {
       let rel = $(a).attr('href');
-      let link = url.resolve(page, rel).split('#')[0];
+      let linkUrl = this.stripUrl(url.resolve(page.url, rel));
+      let linkID = yield* this.takePageID(linkUrl);
 
-      if (!link.startsWith('http') || this.cache.has(link))
-        return;
+      let text = this.grabText([a]);
+      let stems = this.stemmer.tokenizeAndStem(text, 10);
+      if (stems.length > 0)
+        yield stems.map(stem => $insert.run(linkID, stem));
 
-      this.cache.add(link);
-      links.push(link);
-    });
+      if (linkUrl.startsWith('http') && !this.cache.has(linkUrl)) {
+        this.cache.add(linkUrl);
+        links.push({url: linkUrl, id: linkID});
+      }
+    }
 
     return links;
   }
 
-  *index(page, text) {
-    let {db} = this;
-    let words = this.stemmer.tokenizeAndStem(text);
+  *takePageID(url) {
+    return (
+      (yield this.db.get('select rowid as lastID from page where url = ?', url)) ||
+      (yield this.db.run('insert into page(url) values (?)', url))
+    ).lastID;
+  }
 
-    let [$selectWord, $insertWord, $insertLoc] = yield [
-      db.prepare('select rowid from wordlist where word=?'),
-      db.prepare('insert into wordlist(word) values (?)'),
-      db.prepare('insert into wordlocation(urlid, wordid, location) values (?, ?, ?)')
-    ];
+  *takeWordID(stem) {
+    return (
+      (yield this.db.get('select rowid as lastID from word where stem = ?', stem)) ||
+      (yield this.db.run('insert into word(stem, count) values (?, 0)', stem))
+    ).lastID;
+  }
 
-    console.log(decodeURI(page));
-
-    yield db.run('begin');
-    let {lastID: urlID} = yield db.run('insert into urllist(url) values (?)', page);
-
-    for (let [loc, word] of words.entries()) {
-      //#TODO: ensure that there is thread-safety.
-      let result = yield $selectWord.get(word);
-      let wordID = result ? result.rowid : (yield $insertWord.run(word)).lastID;
-      yield $insertLoc.run(urlID, wordID, loc);
-    }
-    yield db.run('commit');
+  stripUrl(url) {
+    return url.split(/[#?]/)[0];
   }
 
   grabText(elems) {
@@ -170,5 +208,5 @@ export default class Crawler {
 
 co(function*() {
   let crawler = yield new Crawler('se.db');
-  crawler.crawl([encodeURI('https://ru.wikipedia.org/wiki/Программирование')]);
+  yield* crawler.crawl([encodeURI('https://ru.wikipedia.org/wiki/Программирование')], 50000);
 }).catch(console.error);

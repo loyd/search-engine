@@ -13,7 +13,7 @@ export default class Stemmer {
     this.ruStemmer = natural.PorterStemmerRu;
   }
 
-  tokenizeAndStem(text) {
+  tokenizeAndStem(text, limit=Infinity) {
     let words = this.tokenizer.tokenize(text);
     let stemmed = [];
 
@@ -23,6 +23,9 @@ export default class Stemmer {
       if (!stopwords.has(word) && word.length < 50) {
         let stemmer = word.charCodeAt(0) < 128 ? this.enStemmer : this.ruStemmer;
         stemmed.push(stemmer.stem(word));
+
+        if (stemmed.length >= limit)
+          break;
       }
     }
 
