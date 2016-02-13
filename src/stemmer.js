@@ -8,27 +8,32 @@ const stopwords = new Set(enStopwords.concat(ruStopwords));
 
 export default class Stemmer {
   constructor() {
-    this.tokenizer = new natural.AggressiveTokenizerRu;
     this.enStemmer = natural.PorterStemmer;
     this.ruStemmer = natural.PorterStemmerRu;
   }
 
-  tokenizeAndStem(text, limit=Infinity) {
-    let words = this.tokenizer.tokenize(text);
-    let stemmed = [];
+  *tokenizeAndStem(text) {
+    let words = this.clear(text).split(' ');
 
     for (let word of words) {
-      word = word.toLowerCase();
-
-      if (!stopwords.has(word) && word.length < 50) {
-        let stemmer = word.charCodeAt(0) < 128 ? this.enStemmer : this.ruStemmer;
-        stemmed.push(stemmer.stem(word));
-
-        if (stemmed.length >= limit)
-          break;
-      }
+      let stem = this.stem(word);
+      if (stem)
+        yield stem;
     }
+  }
 
-    return stemmed;
+  clear(text) {
+    return text.replace(/[^a-zа-яё]/gi, ' ').replace(/[\s\n]+/g, ' ').trim();
+  }
+
+  stem(word) {
+    if (!word) return;
+
+    word = word.toLowerCase();
+
+    if (!stopwords.has(word) && word.length < 50 && word[0] >= 'a') {
+      let stemmer = word[0] <= 'z' ? this.enStemmer : this.ruStemmer;
+      return stemmer.stem(word);
+    }
   }
 }
