@@ -68,9 +68,10 @@ class Handler extends Readability {
 }
 
 const tables = [
-  'page(url, title)',
-  'word(stem, count)',
-  'location(pageid, wordid, position, primary key(wordid, pageid, position)) without rowid',
+  'page(url)',
+  'indexed(pageid primary key, title, length) without rowid',
+  'word(stem, count, idf)',
+  'location(pageid, wordid, position, frequency, primary key(wordid, pageid)) without rowid',
   'link(fromid, toid, wordid)'
 ];
 
@@ -210,24 +211,34 @@ export default class Crawler {
 
   *indexBody(page) {
     let {db} = this;
-    let title = page.title.slice(0, 256);
-    let stemIter = this.stemmer.tokenizeAndStem(page.content);
-    let position = 0;
 
     let [$insertLocation, $updateWord] = yield [
-      db.prepare(`insert into location(pageid, wordid, position) values (${page.id}, ?, ?)`),
+      db.prepare(`insert into location(pageid, wordid, position, frequency)
+                  values (${page.id}, ?, ?, ?)`),
       db.prepare('update word set count = count + 1 where rowid = ?')
     ];
 
-    yield db.run('update page set title = ? where rowid = ?', title, page.id);
+    let stemIter = this.stemmer.tokenizeAndStem(page.content);
+    let words = new Map;
+    let position = 0;
 
     for (let stem of stemIter) {
-      let wordID = yield* this.takeWordID(stem);
-      yield [
-        $updateWord.run(wordID),
-        $insertLocation.run(wordID, position++)
-      ];
+      if (words.has(stem))
+        ++words.get(stem).count;
+      else
+        words.set(stem, {position, count: 1});
+
+      ++position;
     }
+
+    for (let [stem, word] of words) {
+      let wordID = yield* this.takeWordID(stem);
+      $updateWord.run(wordID),
+      $insertLocation.run(wordID, word.position, word.count / position)
+    }
+
+    let title = page.title.slice(0, 256);
+    db.run('insert into indexed(pageid, title, length) values (?, ?, ?)', page.id, title, position);
   }
 
   *indexLinks(page) {
@@ -246,7 +257,8 @@ export default class Crawler {
       let stems = [...this.stemmer.tokenizeAndStem(link.text)].slice(0, 10);
 
       let wordIDs = yield stems.map(stem => this.takeWordID(stem));
-      yield wordIDs.map(wordID => $insert.run(pageID, wordID));
+      for (let wordID of wordIDs)
+        $insert.run(pageID, wordID);
 
       if (!this.cache.has(fullUrl)) {
         this.cache.add(fullUrl);
@@ -278,5 +290,5 @@ export default class Crawler {
 
 co(function*() {
   let crawler = yield new Crawler('se.db');
-  yield* crawler.crawl([encodeURI('https://ru.wikipedia.org/wiki/Программирование')], 50000);
+  yield* crawler.crawl([encodeURI('https://ru.wikipedia.org/wiki/Программирование')], 5000);
 }).catch(console.error);
