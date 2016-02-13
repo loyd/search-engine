@@ -101,7 +101,7 @@ export default class Crawler {
       yield tables.map(tbl => db.run(`create table if not exists ${tbl}`));
       yield indices.map(idx => db.run(`create index if not exists ${idx}`));
 
-      let urls = yield db.all('select url from page');
+      let urls = yield db.all('select url from indexed join page on pageid = page.rowid');
       this.cache = new Set(urls.map(u => u.url));
 
       return this;
