@@ -91,6 +91,9 @@ export default class Crawler {
 
     this.stemmer = new Stemmer;
 
+    this.downloaded = 0;
+    this.indexed = 0;
+
     return co.call(this, function*() {
       let db = this.db = yield sqlite3(dbname);
 
@@ -121,18 +124,17 @@ export default class Crawler {
       this.cache.add(url);
     }
 
-    let visited = 0;
-
     all: for (let i = 0; i < depth; ++i) {
       let page, next = [];
 
       while (page = pages.shift()) {
-        if (visited >= limit)
+        if (this.indexed >= limit)
           break all;
 
         let derived = yield* this.visit(page);
         next.push(...derived);
-        ++visited;
+
+        console.log('[%d|%d] %s', this.indexed, this.downloaded, decodeURI(page.url));
       }
 
       pages = next;
@@ -153,6 +155,8 @@ export default class Crawler {
     if (!acceptType || !acceptLang)
       return [];
 
+    ++this.downloaded;
+
     // Parsing.
     try {
       this.parser.parseComplete(body);
@@ -167,11 +171,14 @@ export default class Crawler {
 
     // Processing.
     try {
-      return yield* this.process(page);
+      var derived = yield* this.process(page);
     } catch (ex) {
       console.error(`Error while processing ${page.url}: ${ex}`);
       return [];
     }
+
+    ++this.indexed;
+    return derived;
   }
 
   *download(page) {
@@ -198,8 +205,6 @@ export default class Crawler {
     ];
 
     yield this.db.run('commit');
-
-    console.log(decodeURI(page.url));
     return links;
   }
 
