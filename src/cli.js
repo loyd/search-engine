@@ -17,7 +17,7 @@ process.on('SIGINT', () => {
 });
 
 process.on('exit', () => {
-  console.log('-'.repeat(80));
+  console.log('-'.repeat(process.stdout.columns));
   console.log('Downloaded: %d', crawler.downloaded);
   console.log('Indexed: %d', crawler.indexed);
   console.log('Spent: %s', spent(start));
@@ -29,6 +29,9 @@ function update(act, url) {
   let spnt = spent(start);
 
   let str = `D: ${down}   I: ${idx}   S: ${spnt}   [${act}] ${url}`;
+
+  if (str.length > process.stdout.columns)
+    str = str.slice(0, process.stdout.columns - 3) + '...';
 
   process.stdout.cursorTo(0);
   process.stdout.write(str);
