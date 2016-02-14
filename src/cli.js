@@ -14,18 +14,6 @@ crawler.on('indexed', url => update('I', url));
 
 let start = Date.now();
 
-process.on('SIGINT', () => {
-  crawler.shutdown();
-  process.exit(0);
-});
-
-process.on('exit', () => {
-  console.log('-'.repeat(process.stdout.columns));
-  console.log('Downloaded: %d', crawler.downloaded);
-  console.log('Indexed: %d', crawler.indexed);
-  console.log('Spent: %s', spent(start));
-});
-
 function update(act, url) {
   let down = crawler.downloaded;
   let idx = crawler.indexed;
@@ -47,3 +35,13 @@ function spent(start) {
   let minutes = diff % 60;
   return hours + ':' + (minutes < 10 ? '0' : '') + minutes;
 }
+
+function onexit() {
+  console.log('\n' + '-'.repeat(process.stdout.columns));
+  console.log('Downloaded: %d', crawler.downloaded);
+  console.log('Indexed: %d', crawler.indexed);
+  console.log('Spent: %s', spent(start));
+}
+
+process.on('SIGINT', () => crawler.shutdown());
+process.on('exit', onexit);

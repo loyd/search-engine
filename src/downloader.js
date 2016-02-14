@@ -12,6 +12,13 @@ export default class Downloader extends Readable {
     super({highWaterMark, objectMode: true});
     this.pages = [];
     this.wait = false;
+    this.terminated = false;
+  }
+
+  shutdown() {
+    this.push(null);
+    this.terminated = true;
+    this.removeAllListeners('downloaded');
   }
 
   enqueue(pages) {
@@ -38,7 +45,7 @@ export default class Downloader extends Readable {
 
         page.body = result.body;
 
-        if (!this.push(page))
+        if (this.terminated || !this.push(page))
           break;
       }
     }).catch(ex => this.emit('error', ex));

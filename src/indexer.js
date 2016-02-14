@@ -48,11 +48,6 @@ export default class Indexer extends Writable {
     });
   }
 
-  end() {
-    super.end();
-    this.once('indexed', _ => this.db.close());
-  }
-
   _write(page, _, cb) {
     co.call(this, function*() {
       yield* this.process(page);
@@ -115,11 +110,14 @@ export default class Indexer extends Writable {
       $insertLocation.run(wordID, word.position, word.count / position)
     }
 
-    $updateWord.finalize();
-    $insertLocation.finalize();
-
     let title = page.title.slice(0, 256);
-    db.run('insert into indexed(pageid, title, length) values (?, ?, ?)', page.id, title, position);
+
+    yield [
+      $updateWord.finalize(),
+      $insertLocation.finalize(),
+      db.run('insert into indexed(pageid, title, length) values (?, ?, ?)',
+             page.id, title, position)
+    ];
   }
 
   *indexLinks(page) {
@@ -153,8 +151,7 @@ export default class Indexer extends Writable {
       }
     }
 
-    $insert.finalize();
-
+    yield $insert.finalize();
     return derived;
   }
 

@@ -48,6 +48,6 @@ export default class Crawler extends EventEmitter {
   }
 
   shutdown() {
-    this.indexer.end();
+    this.downloader.shutdown();
   }
 }
