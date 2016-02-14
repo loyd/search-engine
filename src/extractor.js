@@ -7,8 +7,10 @@ import {Readability} from 'readabilitySAX';
 
 
 class Handler extends Readability {
-  constructor() {
+  constructor(ignoreNofollow) {
     super({searchFurtherPages: false});
+
+    this.nofollow = !ignoreNofollow;
 
     // Nesting <a> element is forbidden in HTML(5). Ignore it.
     this.nested = 0;
@@ -19,9 +21,18 @@ class Handler extends Readability {
   onopentag(name, attribs) {
     if (name === 'a')
       if (this.nested++ === 0) {
-        let href = attribs.href || this.findHref(attribs);
-        if (href)
-          this.link = {href, text: ''};
+        let href, rel;
+
+        for (let [name, value] of this.attribs(attribs))
+          if (name === 'href')
+            href = value;
+          else if (name === 'rel')
+            rel = value;
+
+        if (href) {
+          let nofollow = this.nofollow && !!rel && rel.toLowerCase().indexOf('nofollow') !== -1;
+          this.link = {href, text: '', nofollow};
+        }
       }
 
       super.onopentag && super.onopentag(name, attribs);
@@ -55,18 +66,17 @@ class Handler extends Readability {
     super.onreset();
   }
 
-  findHref(attribs) {
-    for (let name of Object.keys(attribs))
-      if (name.toLowerCase() === 'href')
-        return attribs[name];
+  *attribs(attribs) {
+    for (let name in attribs)
+      yield [name.toLowerCase(), attribs[name]];
   }
 }
 
 export default class Extractor extends Transform {
-  constructor() {
+  constructor(ignoreNofollow=false) {
     super({objectMode: true});
 
-    this.handler = new Handler;
+    this.handler = new Handler(ignoreNofollow);
     this.parser = new Parser(this.handler);
   }
 

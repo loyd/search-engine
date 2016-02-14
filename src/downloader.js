@@ -68,7 +68,7 @@ export default class Downloader extends Readable {
   }
 
   isAcceptable(headers) {
-    let acceptType = (headers['content-type'] || '').indexOf('html') > -1;
+    let acceptType = (headers['content-type'] || '').indexOf('html') !== -1;
     let acceptLang = /en|ru/i.test(headers['content-language'] || 'en');
 
     return acceptType && acceptLang;

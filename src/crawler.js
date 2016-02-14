@@ -9,8 +9,10 @@ import Indexer from './indexer';
 
 
 export default class Crawler extends EventEmitter {
-  constructor(dbname, ...urls) {
+  constructor(opts) {
     super();
+
+    let {dbname, urls, ignoreNofollow} = opts;
 
     this.indexed = 0;
     this.downloaded = 0;
@@ -27,7 +29,7 @@ export default class Crawler extends EventEmitter {
         downloader.enqueue(derived);
       });
 
-      let extractor = this.extractor = new Extractor;
+      let extractor = this.extractor = new Extractor(ignoreNofollow);
       extractor.on('error', onerror);
 
       let downloader = this.downloader = new Downloader;

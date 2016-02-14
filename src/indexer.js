@@ -144,11 +144,13 @@ export default class Indexer extends Writable {
       if (!known)
         derived.push({url: origUrl, id: pageID});
 
-      let stems = [...this.stemmer.tokenizeAndStem(link.text)].slice(0, 10);
+      if (!link.nofollow) {
+        let stems = [...this.stemmer.tokenizeAndStem(link.text)].slice(0, 10);
 
-      let wordIDs = yield stems.map(stem => this.takeWordID(stem));
-      for (let wordID of wordIDs)
-        $insert.run(pageID, wordID);
+        let wordIDs = yield stems.map(stem => this.takeWordID(stem));
+        for (let wordID of wordIDs)
+          $insert.run(pageID, wordID);
+      }
     }
 
     $insert.finalize();

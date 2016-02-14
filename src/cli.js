@@ -3,7 +3,10 @@
 import Crawler from './crawler';
 
 
-let crawler = new Crawler('se.db', 'https://ru.wikipedia.org/wiki/Программирование');
+let crawler = new Crawler({
+  dbname: 'se.db',
+  urls: ['https://ru.wikipedia.org/wiki/Программирование']
+});
 
 crawler.on('error', console.error);
 crawler.on('downloaded', url => update('D', url));
