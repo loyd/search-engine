@@ -1,3 +1,5 @@
+"use strict";
+
 import natural from 'natural';
 
 import {words as enStopwords} from 'natural/lib/natural/util/stopwords';
