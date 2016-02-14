@@ -59,10 +59,7 @@ export default class Downloader extends Readable {
         resolveWithFullResponse: true
       });
     } catch (ex) {
-      if (ex instanceof RequestError) {
-        if (ex.cause.code !== 'ENOTFOUND')
-          this.emit('error', ex);
-      } else if (!(ex instanceof StatusCodeError))
+      if (!(ex instanceof RequestError || ex instanceof StatusCodeError))
         throw ex;
     }
 
