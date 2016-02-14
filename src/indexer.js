@@ -12,7 +12,7 @@ import Stemmer from './stemmer';
 const tables = [
   'page(url)',
   'indexed(pageid primary key, title, length) without rowid',
-  'word(stem, count, idf)',
+  'word(stem, pagecount)',
   'location(pageid, wordid, position, frequency, primary key(wordid, pageid)) without rowid',
   'link(fromid, toid, wordid)'
 ];
@@ -93,7 +93,7 @@ export default class Indexer extends Writable {
     let [$insertLocation, $updateWord] = yield [
       db.prepare(`insert into location(pageid, wordid, position, frequency)
                   values (${page.id}, ?, ?, ?)`),
-      db.prepare('update word set count = count + 1 where rowid = ?')
+      db.prepare('update word set pagecount = pagecount + 1 where rowid = ?')
     ];
 
     let stemIter = this.stemmer.tokenizeAndStem(page.content);
@@ -179,7 +179,7 @@ export default class Indexer extends Writable {
     if (!id) {
       id = (
         (yield this.db.get('select rowid as lastID from word where stem = ?', stem)) ||
-        (yield this.db.run('insert into word(stem, count) values (?, 0)', stem))
+        (yield this.db.run('insert into word(stem, pagecount) values (?, 0)', stem))
       ).lastID;
 
       cache.set(stem, id);
