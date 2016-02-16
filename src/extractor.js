@@ -89,7 +89,7 @@ export default class Extractor extends Transform {
 
     page.title = this.handler.getTitle();
     page.content = this.handler.getText();
-    page.links = this.handler.links;
+    page.links = this.handler.links.slice();
 
     cb(null, page);
   }
