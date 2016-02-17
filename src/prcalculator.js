@@ -33,6 +33,10 @@ export default class PRCalculator extends EventEmitter {
 
       this.changeState('filling index');
       yield this.fillIndex(iterations);
+
+      this.changeState('updating info');
+      yield this.updateInfo();
+
       this.changeState('done');
     });
   }
@@ -85,6 +89,13 @@ export default class PRCalculator extends EventEmitter {
       update indexed set pagerank = (
         select pagerank from ${src} where pageid = indexed.pageid
       )
+    `);
+  }
+
+  updateInfo() {
+    return this.db.exec(`
+      delete from info;
+      insert into info select count(*), avg(wordcount) from indexed;
     `);
   }
 

@@ -41,6 +41,11 @@ const tables = [
     fromid integer not null,
     toid   integer not null,
     wordid integer not null
+  )`,
+
+  `info(
+    indexedcount integer not null,
+    avgwordcount real not null
   )`
 ];
 
