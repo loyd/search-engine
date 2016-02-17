@@ -73,7 +73,6 @@ function crawl(argv) {
     urls: argv._.slice(1)
   });
 
-  crawler.on('error', console.error);
   crawler.on('downloaded', url => update('D', url));
   crawler.on('indexed', url => update('I', url));
 
@@ -128,4 +127,22 @@ function pagerank(argv) {
     let seconds = diff % 60;
     return `${minutes}m ${seconds}s`;
   }
+}
+
+function search(argv) {
+  let start = Date.now();
+  let query = argv._.slice(1).join(' ');
+
+  let searcher = new Searcher(argv.database);
+
+  searcher.search(query).then(pages => {
+    if (pages.length === 0)
+      console.log('Ooops! Where is it?');
+
+    for (let page of pages.slice(0, 10))
+      console.log('[%s] %s', page.score.toFixed(2), decodeURI(page.url));
+
+    console.log('-'.repeat(process.stdout.columns));
+    console.log('About %s results (%d seconds)', pages.length, (Date.now() - start) / 1000);
+  }).catch(console.error);
 }

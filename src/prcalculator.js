@@ -18,7 +18,7 @@ export default class PRCalculator extends EventEmitter {
   }
 
   calculatePageRank(iterations=20) {
-    return co.call(this, function*() {
+    co.call(this, function*() {
       yield this.guard;
 
       this.changeState('collecting inbound links');
@@ -38,7 +38,7 @@ export default class PRCalculator extends EventEmitter {
       yield this.updateInfo();
 
       this.changeState('done');
-    });
+    }).catch(ex => this.emit('error', ex));
   }
 
   collectInboundLinks() {
