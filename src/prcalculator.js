@@ -12,15 +12,15 @@ export default class PRCalculator extends EventEmitter {
 
     this.db = null;
     this.state = null;
-
-    return co.call(this, function*() {
+    this.guard = co.call(this, function*() {
       this.db = yield sqlite3(dbname);
-      return this;
     });
   }
 
   calculatePageRank(iterations=20) {
     return co.call(this, function*() {
+      yield this.guard;
+
       this.changeState('collecting inbound links');
       yield this.collectInboundLinks();
       this.changeState('collecting initial data');
