@@ -21,7 +21,6 @@ const tables = [
     pageid    integer not null primary key,
     title     text    not null,
     wordcount integer not null,
-    linkcount integer not null,
     pagerank  real    not null
   ) without rowid`,
 
@@ -35,9 +34,8 @@ const tables = [
 
   `link(
     fromid integer not null,
-    toid   integer not null,
-    primary key(toid, fromid)
-  ) without rowid`,
+    toid   integer not null
+  )`,
 
   `linkword(
     fromid integer not null,
@@ -98,18 +96,18 @@ export default class Indexer extends Writable {
 
   *index(page) {
     let {db} = this;
-    let [words, wordCount] = this.prepareWords(page);
 
     yield db.run('begin');
 
+    let [words, wordCount] = this.prepareWords(page);
     let wordGuard = this.indexWords(page, words, wordCount);
 
-    let [links, linkCount] = this.prepareLinks(page);
-    let linkGuard = this.indexLinks(page, links);
-
     let title = page.title.slice(0, 256);
-    let indexGuard = db.run(`insert into indexed(pageid, title, wordcount, linkcount, pagerank)
-                             values (?, ?, ?, ?, 0.)`, page.id, title, wordCount, linkCount);
+    let indexGuard = db.run(`insert into indexed(pageid, title, wordcount, pagerank)
+                             values (?, ?, ?, 0.)`, page.id, title, wordCount);
+
+    let links = this.prepareLinks(page);
+    let linkGuard = this.indexLinks(page, links);
 
     let [derived] = yield [linkGuard, wordGuard, indexGuard];
     yield db.run('commit');
@@ -156,7 +154,6 @@ export default class Indexer extends Writable {
 
   prepareLinks(page) {
     let links = new Map;
-    let dofollow = 0;
 
     for (let link of page.links) {
       let resolved = urllib.resolve(page.url, link.href);
@@ -197,14 +194,12 @@ export default class Indexer extends Writable {
               break;
           }
 
-        if (stored === link || stored.nofollow) {
-          ++dofollow;
+        if (stored === link || stored.nofollow)
           stored.nofollow = false;
-        }
       }
     }
 
-    return [links, dofollow];
+    return links;
   }
 
   *indexLinks(page, links) {
