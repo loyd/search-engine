@@ -22,7 +22,7 @@ export default class Searcher {
     });
   }
 
-  search(query, partSize=10) {
+  search(query, limit=Infinity, offset=0) {
     return co.call(this, function*() {
       yield this.guard;
 
@@ -30,9 +30,10 @@ export default class Searcher {
       let pages = yield* this.pickPages(words);
 
       this.rankPages(pages, words);
-      let divisor = this.dividePages(pages, partSize);
-      divisor.total = pages.length;
-      return divisor;
+      let result = yield this.fetchInfo(pages.slice(offset, offset + limit));
+      result.total = pages.length;
+
+      return result;
     });
   }
 
@@ -125,23 +126,16 @@ export default class Searcher {
     pages.sort((a, b) => b.score - a.score);
   }
 
-  *dividePages(pages, partSize) {
-    for (let i = 0; i < pages.length; i += partSize) {
-      let part = pages.slice(i, i + partSize);
+  *fetchInfo(pages) {
+    let result = yield this.db.all(`
+      select url, title from indexed join page on pageid = page.rowid
+      where pageid in (${pages.map(p => p.pageID).join(',')})
+    `);
 
-      yield co.call(this, function*() {
-        let result = yield this.db.all(`
-          select url, title from indexed join page on pageid = page.rowid
-          where pageid in (${part.map(p => p.pageID).join(',')})
-        `);
-
-        for (let [i, aux] of result.entries()) {
-          part[i].url = aux.url;
-          part[i].title = aux.title;
-        }
-
-        return part;
-      });
-    }
+    return result.map((info, i) => ({
+      url: info.url,
+      title: info.title,
+      score: pages[i].score
+    }));
   }
 }

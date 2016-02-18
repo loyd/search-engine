@@ -32,9 +32,15 @@ let argv = yargs
     .demand(2)
     .option('l', {
       alias: 'limit',
-      describe: 'the number of results',
+      describe: 'the number of pages',
       number: true,
       default: 10
+    })
+    .option('o', {
+      alias: 'offset',
+      describe: 'the number of skip pages',
+      number: true,
+      default: 0
     })
   )
   .command('server', 'start the web server', yargs =>
@@ -44,7 +50,7 @@ let argv = yargs
       alias: 'port',
       describe: 'specify the port',
       number: true,
-      default: 8080
+      default: 3000
     })
   )
   .option('d', {
@@ -140,15 +146,9 @@ function search(argv) {
   let query = argv._.slice(1).join(' ');
 
   let searcher = new Searcher(argv.database);
-  searcher.search(query, argv.limit).then(divisor => {
-    let item = divisor.next();
-    if (item.done)
-      handlePages([]);
-    else
-      return item.value.then(pages => handlePages(pages, divisor.total));
-  }).catch(console.error);
+  searcher.search(query, argv.limit, argv.offset).then(handlePages).catch(console.error);
 
-  function handlePages(pages, total) {
+  function handlePages(pages) {
     if (pages.length === 0)
       console.log('Ooops! Where is it?');
 
@@ -156,6 +156,6 @@ function search(argv) {
       console.log('[%s] %s | %s', page.score.toFixed(2), page.title, decodeURI(page.url));
 
     console.log('-'.repeat(process.stdout.columns));
-    console.log('About %s results (%d seconds)', total, (Date.now() - start) / 1000);
+    console.log('About %s results (%d seconds)', pages.total, (Date.now() - start) / 1000);
   }
 }
