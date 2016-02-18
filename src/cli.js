@@ -30,6 +30,12 @@ let argv = yargs
     yargs
     .usage('Usage: $0 search [options] <query>')
     .demand(2)
+    .option('l', {
+      alias: 'limit',
+      describe: 'the number of results',
+      number: true,
+      default: 10
+    })
   )
   .command('server', 'start the web server', yargs =>
     yargs
@@ -134,15 +140,22 @@ function search(argv) {
   let query = argv._.slice(1).join(' ');
 
   let searcher = new Searcher(argv.database);
+  searcher.search(query, argv.limit).then(divisor => {
+    let item = divisor.next();
+    if (item.done)
+      handlePages([]);
+    else
+      return item.value.then(handlePages);
+  }).catch(console.error);
 
-  searcher.search(query).then(pages => {
+  function handlePages(pages) {
     if (pages.length === 0)
       console.log('Ooops! Where is it?');
 
-    for (let page of pages.slice(0, 10))
-      console.log('[%s] %s', page.score.toFixed(2), decodeURI(page.url));
+    for (let page of pages)
+      console.log('[%s] %s | %s', page.score.toFixed(2), page.title, decodeURI(page.url));
 
     console.log('-'.repeat(process.stdout.columns));
     console.log('About %s results (%d seconds)', pages.length, (Date.now() - start) / 1000);
-  }).catch(console.error);
+  }
 }

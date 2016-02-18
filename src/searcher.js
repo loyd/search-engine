@@ -22,7 +22,7 @@ export default class Searcher {
     });
   }
 
-  search(query) {
+  search(query, partSize=10) {
     return co.call(this, function*() {
       yield this.guard;
 
@@ -30,7 +30,7 @@ export default class Searcher {
       let pages = yield* this.pickPages(words);
 
       this.rankPages(pages, words);
-      return pages;
+      return this.dividePages(pages, partSize);
     });
   }
 
@@ -121,5 +121,25 @@ export default class Searcher {
     }
 
     pages.sort((a, b) => b.score - a.score);
+  }
+
+  *dividePages(pages, partSize) {
+    for (let i = 0; i < pages.length; i += partSize) {
+      let part = pages.slice(i, i + partSize);
+
+      yield co.call(this, function*() {
+        let result = yield this.db.all(`
+          select url, title from indexed join page on pageid = page.rowid
+          where pageid in (${part.map(p => p.pageID).join(',')})
+        `);
+
+        for (let [i, aux] of result.entries()) {
+          part[i].url = aux.url;
+          part[i].title = aux.title;
+        }
+
+        return part;
+      });
+    }
   }
 }
