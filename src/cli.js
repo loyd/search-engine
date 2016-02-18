@@ -145,10 +145,10 @@ function search(argv) {
     if (item.done)
       handlePages([]);
     else
-      return item.value.then(handlePages);
+      return item.value.then(pages => handlePages(pages, divisor.total));
   }).catch(console.error);
 
-  function handlePages(pages) {
+  function handlePages(pages, total) {
     if (pages.length === 0)
       console.log('Ooops! Where is it?');
 
@@ -156,6 +156,6 @@ function search(argv) {
       console.log('[%s] %s | %s', page.score.toFixed(2), page.title, decodeURI(page.url));
 
     console.log('-'.repeat(process.stdout.columns));
-    console.log('About %s results (%d seconds)', pages.length, (Date.now() - start) / 1000);
+    console.log('About %s results (%d seconds)', total, (Date.now() - start) / 1000);
   }
 }

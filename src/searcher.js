@@ -30,7 +30,9 @@ export default class Searcher {
       let pages = yield* this.pickPages(words);
 
       this.rankPages(pages, words);
-      return this.dividePages(pages, partSize);
+      let divisor = this.dividePages(pages, partSize);
+      divisor.total = pages.length;
+      return divisor;
     });
   }
 
