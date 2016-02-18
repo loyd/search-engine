@@ -37,6 +37,9 @@ export default class PRCalculator extends EventEmitter {
       this.changeState('updating info');
       yield this.updateInfo();
 
+      this.changeState('analyzing tables');
+      yield this.analyzeTables();
+
       this.changeState('done');
     }).catch(ex => this.emit('error', ex));
   }
@@ -97,6 +100,10 @@ export default class PRCalculator extends EventEmitter {
       delete from info;
       insert into info select count(*), avg(wordcount) from indexed;
     `);
+  }
+
+  analyzeTables() {
+    return this.db.run('analyze');
   }
 
   prTemplate(i) {
