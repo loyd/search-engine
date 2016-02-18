@@ -52,6 +52,12 @@ let argv = yargs
       number: true,
       default: 3000
     })
+    .option('l', {
+      alias: 'limit',
+      describe: 'pages per request limit',
+      number: true,
+      default: 15
+    })
   )
   .option('d', {
     global: true,
@@ -68,6 +74,7 @@ let argv = yargs
 import Crawler from './crawler';
 import PRCalculator from './prcalculator';
 import Searcher from './searcher';
+import Server from './server';
 
 
 switch (argv._[0]) {
@@ -158,4 +165,10 @@ function search(argv) {
     console.log('-'.repeat(process.stdout.columns));
     console.log('About %s results (%d seconds)', pages.total, (Date.now() - start) / 1000);
   }
+}
+
+function server(argv) {
+  let searcher = new Searcher(argv.database);
+  let server = new Server(searcher, argv.limit);
+  server.listen(argv.port);
 }

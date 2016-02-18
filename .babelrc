@@ -1,3 +1,9 @@
 {
-  "presets": ["es2015-node"]
+  "presets": ["es2015-node"],
+
+  "env": {
+    "browser": {
+      "presets": ["es2015"]
+    }
+  }
 }
