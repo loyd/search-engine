@@ -3,27 +3,59 @@
 
 let metaTmpl = tmpl('meta-tmpl');
 let entryTmpl = tmpl('entry-tmpl');
+let offsetTmpl = tmpl('offset-tmpl');
 
 let $form = document.getElementById('search-form');
 let $meta = document.getElementById('meta-box');
 let $result = document.getElementById('result-box');
+let $offset = document.getElementById('offset-box');
+
+let query = '';
 
 $form.onsubmit = _ => {
-  search($form.query.value, update);
+  query = $form.query.value;
+  search(query, 0, update);
   return false;
 };
 
-function update({spent, total, result}) {
-  $meta.innerHTML = metaTmpl({total, spent: spent / 1000});
-  $result.innerHTML = result.map(entry => entryTmpl({
+$offset.onclick = e => {
+  if (!e.target.classList.contains('offset'))
+    return;
+
+  search(query, e.target.dataset.offset, update);
+};
+
+function update(data) {
+  const pageWindow = 5;
+
+  let pageCount = Math.ceil(data.total / data.limit);
+  let currentPage = Math.floor(data.offset / data.limit);
+  let fromPage = Math.max((currentPage - pageWindow/2|0) + 1, 0);
+  let toPage = Math.min(fromPage + pageWindow, pageCount) - 1;
+
+  $meta.innerHTML = metaTmpl({
+    total: data.total,
+    spent: data.spent / 1000,
+    current: currentPage
+  });
+
+  $result.innerHTML = data.result.map(entry => entryTmpl({
     score: Math.round(entry.score * 100),
     url: decodeURI(entry.url),
     title: entry.title
   })).join('');
+
+  $offset.innerHTML = offsetTmpl({
+    from: fromPage,
+    to: toPage,
+    count: pageCount,
+    current: currentPage,
+    limit: data.limit
+  });
 }
 
-function search(query, done) {
-  request(`search?q=${query}`, text => {
+function search(query, offset, done) {
+  request(`search?q=${query}&o=${offset}`, text => {
     try {
       var result = JSON.parse(text);
     } catch (ex) {

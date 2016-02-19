@@ -38,7 +38,7 @@ export default class Server {
       return yield next;
 
     let query = this.query.q || '';
-    let offset = this.query.o;
+    let offset = Math.max(this.query.o || 0, 0);
 
     this.type = 'json';
 
@@ -46,7 +46,11 @@ export default class Server {
     let result = yield this.searcher.search(query, this.limit, offset);
     let spent = Date.now() - start;
 
-    this.body = {total: result.total, spent, result};
+    this.body = {
+      total: result.total,
+      limit: this.limit,
+      offset, result, spent
+    };
   }
 
   *file(next) {

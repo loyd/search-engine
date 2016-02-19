@@ -5,11 +5,13 @@
 <script src="index.js" defer></script>
 
 <script type="text/html" id="meta-tmpl">
-  <div class="meta">About <%total%> results (<%spent%> seconds)</div>
+  <div class="meta">
+    About <%total%> results<%current ? ', page ' + (current + 1) : ''%> (<%spent%> seconds)
+  </div>
 </script>
 
 <script type="text/html" id="entry-tmpl">
-  <div class="entry cf">
+  <div class="entry">
     <div class="score"><%score%></div>
     <div class="info">
       <div class="title"><a href="<%url%>"><%title%></a></div>
@@ -18,10 +20,27 @@
   </div>
 </script>
 
-<form class="search-form" id="search-form">
+<script type="text/html" id="offset-tmpl">
+  <%if (from > 0) {%>
+    <div class="offset" data-offset="0">1</div>
+  <%}%>
+  <%if (from > 1) {%>
+    <div class="offset" data-offset="<%(from-1) * limit%>">...</div>
+  <%}%>
+  <%for (var i = from; i <= to; ++i) {%>
+    <div class="offset <%i === current ? 'current' : ''%>"
+         data-offset="<%i * limit%>"><%i+1%></div>
+  <%}%>
+  <%if (to < count-1) {%>
+    <div class="offset" data-offset="<%(to+1) * limit%>">...</div>
+  <%}%>
+</script>
+
+<form id="search-form">
   <input name="query" type="text">
   <button type="submit">🔍</button>
 </form>
 
 <div id="meta-box"></div>
 <div id="result-box"></div>
+<div id="offset-box"></div>

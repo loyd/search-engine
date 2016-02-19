@@ -8,7 +8,7 @@ a {
   color: #ccc;
 }
 
-.search-form {
+#search-form {
   display: table;
   margin: 50px auto 50px auto;
   padding: 15px;
@@ -17,7 +17,7 @@ a {
   box-shadow: 0 1px 1px rgba(0, 0, 0, .4) inset, 0 1px 0 rgba(255, 255, 255, .2);
 }
 
-.search-form input, .search-form button {
+#search-form input, #search-form button {
   font-size: 1.1em;
   font-weight: bold;
   box-sizing: content-box;
@@ -27,20 +27,20 @@ a {
   border: 0;
 }
 
-.search-form input {
+#search-form input {
   float: left;
   width: 400px;
   background: #eee;
   border-radius: 3px 0 0 3px;
 }
 
-.search-form input:focus {
+#search-form input:focus {
   outline: 0;
   background: #fff;
   box-shadow: 0 0 2px rgba(0, 0, 0, .8) inset;
 }
 
-.search-form button {
+#search-form button {
   position: relative;
   cursor: pointer;
   color: #fff;
@@ -49,16 +49,16 @@ a {
   text-shadow: 0 -1px 0 rgba(0, 0, 0, .3);
 }
 
-.search-form button:hover {
+#search-form button:hover {
   background: #e54040;
 }
 
-.search-form button:active,
-.search-form button:focus {
+#search-form button:active,
+#search-form button:focus {
   background: #c42f2f;
 }
 
-.search-form button:before {
+#search-form button:before {
   content: '';
   position: absolute;
   border-width: 8px 8px 8px 0;
@@ -69,15 +69,15 @@ a {
   left: -6px;
 }
 
-.search-form button:hover:before {
+#search-form button:hover:before {
   border-right-color: #e54040;
 }
 
-.search-form button:focus:before {
+#search-form button:focus:before {
   border-right-color: #c42f2f;
 }
 
-.search-form button::-moz-focus-inner {
+#search-form button::-moz-focus-inner {
   border: 0;
   padding: 0;
 }
@@ -114,7 +114,7 @@ a {
   border-radius: 3px 0 0 3px;
 }
 
-.title, .url {
+.info .title, .info .url {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -122,4 +122,25 @@ a {
 
 .url {
   color: gray;
+}
+
+#offset-box {
+  text-align: center;
+}
+
+.offset {
+  display: inline-block;
+  height: 1em;
+  padding: 10px 12px;
+  text-align: center;
+  line-height: 1em;
+  cursor: pointer;
+  color: #fff;
+  background: #d83c3c;
+  border-radius: 3px 3px;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .3);
+}
+
+.offset.current {
+  border: 2px solid gray;
 }
