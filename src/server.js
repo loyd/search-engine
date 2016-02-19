@@ -30,14 +30,14 @@ export default class Server {
     let start = Date.now();
     yield next;
     let ms = Date.now() - start;
-    console.log('%s %s - %sms', this.method, decodeURI(this.url), ms);
+    console.log('%s %s - %sms', this.method, this.url, ms);
   }
 
   *search(next) {
     if (this.path !== '/search')
       return yield next;
 
-    let query = this.query.q || '';
+    let query = decodeURIComponent(this.query.q || '');
     let offset = +this.query.o;
 
     if (!Number.isSafeInteger(offset) || offset < 0)

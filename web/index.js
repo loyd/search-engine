@@ -68,6 +68,8 @@ function update(err, data) {
 }
 
 function search(query, offset, done) {
+  query = encodeURIComponent(query);
+
   request(`search?q=${query}&o=${offset}`, (err, text) => {
     if (err) return done(err);
 
