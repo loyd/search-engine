@@ -82,7 +82,7 @@ a {
   padding: 0;
 }
 
-.meta {
+#meta-box {
   text-align: center;
 }
 
@@ -143,4 +143,84 @@ a {
 
 .offset.current {
   border: 2px solid gray;
+}
+
+
+/*
+ * Spinning loader.
+ */
+
+#loader {
+  margin: 100px auto;
+  width: 80px;
+  height: 80px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  margin-top: -40px;
+  margin-left: -40px;
+  visibility: hidden;
+}
+
+#loader.show {
+  visibility: visible;
+}
+
+#loader:before {
+  content: '';
+  display: block;
+  background-color: rgba(0, 0, 0, .5);
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+}
+
+#loader .circle {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+#loader .circle:before {
+  content: '';
+  display: block;
+  margin: 0 auto;
+  width: 15%;
+  height: 15%;
+  background-color: white;
+  border-radius: 100%;
+  animation: circle-fade-delay 1.2s infinite ease-in-out both;
+}
+
+#loader .circle-02 { transform: rotate(30deg); }
+#loader .circle-03 { transform: rotate(60deg); }
+#loader .circle-04 { transform: rotate(90deg); }
+#loader .circle-05 { transform: rotate(120deg); }
+#loader .circle-06 { transform: rotate(150deg); }
+#loader .circle-07 { transform: rotate(180deg); }
+#loader .circle-08 { transform: rotate(210deg); }
+#loader .circle-09 { transform: rotate(240deg); }
+#loader .circle-10 { transform: rotate(270deg); }
+#loader .circle-11 { transform: rotate(300deg); }
+#loader .circle-12 { transform: rotate(330deg); }
+
+#loader .circle-02:before { animation-delay: -1.1s; }
+#loader .circle-03:before { animation-delay: -1.0s; }
+#loader .circle-04:before { animation-delay: -0.9s; }
+#loader .circle-05:before { animation-delay: -0.8s; }
+#loader .circle-06:before { animation-delay: -0.7s; }
+#loader .circle-07:before { animation-delay: -0.6s; }
+#loader .circle-08:before { animation-delay: -0.5s; }
+#loader .circle-09:before { animation-delay: -0.4s; }
+#loader .circle-10:before { animation-delay: -0.3s; }
+#loader .circle-11:before { animation-delay: -0.2s; }
+#loader .circle-12:before { animation-delay: -0.1s; }
+
+@keyframes circle-fade-delay {
+  0%, 39%, 100% { opacity: 0; }
+  40% { opacity: 1; }
 }

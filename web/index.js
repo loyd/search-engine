@@ -9,11 +9,13 @@ let $form = document.getElementById('search-form');
 let $meta = document.getElementById('meta-box');
 let $result = document.getElementById('result-box');
 let $offset = document.getElementById('offset-box');
+let $loader = document.getElementById('loader');
 
 let query = '';
 
 $form.onsubmit = _ => {
   query = $form.query.value;
+  $loader.classList.add('show');
   search(query, 0, update);
   return false;
 };
@@ -22,10 +24,19 @@ $offset.onclick = e => {
   if (!e.target.classList.contains('offset'))
     return;
 
+  $loader.classList.add('show');
   search(query, e.target.dataset.offset, update);
 };
 
-function update(data) {
+function update(err, data) {
+  if (err) {
+    $result.innerHTML = $offset.innerHTML = '';
+    $meta.innerHTML = 'D\'oh! Something is wrong...';
+    console.error(err);
+    $loader.classList.remove('show');
+    return;
+  }
+
   const pageWindow = 5;
 
   let pageCount = Math.ceil(data.total / data.limit);
@@ -52,18 +63,21 @@ function update(data) {
     current: currentPage,
     limit: data.limit
   });
+
+  $loader.classList.remove('show');
 }
 
 function search(query, offset, done) {
-  request(`search?q=${query}&o=${offset}`, text => {
+  request(`search?q=${query}&o=${offset}`, (err, text) => {
+    if (err) return done(err);
+
     try {
       var result = JSON.parse(text);
     } catch (ex) {
-      console.error('Ooops', ex);
-      return;
+      return done(ex);
     }
 
-    done(result);
+    done(null, result);
   });
 }
 
@@ -76,9 +90,9 @@ function request(path, done) {
       return;
 
     if (xhr.status !== 200)
-      console.error('%d: %s', xhr.status, xhr.statusText);
+      return done(new Error(`Bad response: ${xhr.status} (${xhr.statusText})`));
 
-    done(xhr.responseText);
+    done(null, xhr.responseText);
   };
 }
 
