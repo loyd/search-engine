@@ -38,7 +38,10 @@ export default class Server {
       return yield next;
 
     let query = this.query.q || '';
-    let offset = Math.max(this.query.o || 0, 0);
+    let offset = +this.query.o;
+
+    if (!Number.isSafeInteger(offset) || offset < 0)
+      offset = 0;
 
     this.type = 'json';
 
