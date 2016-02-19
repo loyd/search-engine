@@ -98,6 +98,7 @@ export default class Searcher {
       word.idf = Math.max(Math.log((indexedCount - word.pageCount) / word.pageCount), 0);
 
     let maxBM25 = 0;
+    let maxWordCount = 0;
     let maxTotalPosition = 0;
     let maxReferentPageRank = 0;
     let maxPageRank = 0;
@@ -112,6 +113,7 @@ export default class Searcher {
         acc + w.idf * ((k+1) * page['frequency'+i] / (page['frequency'+i] + k*gain) + d), 0);
 
       maxBM25 = Math.max(maxBM25, page.bm25);
+      maxWordCount = Math.max(maxWordCount, page.wordCount);
       maxTotalPosition = Math.max(maxTotalPosition, page.totalPosition);
       maxReferentPageRank = Math.max(maxReferentPageRank, page.referentPageRank);
       maxPageRank = Math.max(maxPageRank, page.pageRank);
@@ -119,19 +121,18 @@ export default class Searcher {
 
     for (let page of pages) {
       let bm25Score = page.bm25 / Math.max(maxBM25, 1);
+      let cntScore = page.wordCount / maxWordCount;
       let posScore = 1 - page.totalPosition / Math.max(maxTotalPosition, 1);
       let refScore = page.referentPageRank / maxReferentPageRank;
       let prScore = page.pageRank / maxPageRank;
 
-      page.score = (.5 * prScore + 1.5 * refScore + posScore + 2 * bm25Score) / 5;
-      //page.scores = [prScore, refScore, posScore, bm25Score];
+      page.score = (.5 * prScore + 1.5 * refScore + posScore + cntScore + 2 * bm25Score) / 6;
     }
 
     pages.sort((a, b) => b.score - a.score);
   }
 
   *fetchInfo(pages) {
-    //console.log(pages);
     let map = pages.reduce((map, page) => map.set(page.pageID, {score: page.score}), new Map);
 
     let result = yield this.db.all(`
