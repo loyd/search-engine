@@ -120,22 +120,26 @@ export default class Searcher {
       let prScore = page.pageRank / maxPageRank;
 
       page.score = (.5 * prScore + 1.5 * refScore + posScore + 2 * bm25Score) / 5;
-      page.scores = [prScore, refScore, posScore, bm25Score];
+      //page.scores = [prScore, refScore, posScore, bm25Score];
     }
 
     pages.sort((a, b) => b.score - a.score);
   }
 
   *fetchInfo(pages) {
+    let map = pages.reduce((map, page) => map.set(page.pageID, {score: page.score}), new Map);
+
     let result = yield this.db.all(`
-      select url, title from indexed join page on pageid = page.rowid
+      select pageid, url, title from indexed join page on pageid = page.rowid
       where pageid in (${pages.map(p => p.pageID).join(',')})
     `);
 
-    return result.map((info, i) => ({
-      url: info.url,
-      title: info.title,
-      score: pages[i].score
-    }));
+    for (let info of result) {
+      let page = map.get(info.pageid);
+      page.url = info.url;
+      page.title = info.title;
+    }
+
+    return [...map.values()];
   }
 }
