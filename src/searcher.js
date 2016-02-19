@@ -8,9 +8,10 @@ import Stemmer from './stemmer';
 
 
 export default class Searcher {
-  constructor(dbname) {
+  constructor(dbname, verbose=false) {
     this.db = null;
     this.info = null;
+    this.verbose = verbose;
 
     this.stemmer = new Stemmer;
 
@@ -127,13 +128,20 @@ export default class Searcher {
       let prScore = page.pageRank / maxPageRank;
 
       page.score = (.5 * prScore + 1.5 * refScore + posScore + cntScore + 2 * bm25Score) / 6;
+
+      if (this.verbose)
+        page.scores = {
+          bm25: bm25Score, cnt: cntScore, pos: posScore, ref: refScore, pr: prScore
+        };
     }
 
     pages.sort((a, b) => b.score - a.score);
   }
 
   *fetchInfo(pages) {
-    let map = pages.reduce((map, page) => map.set(page.pageID, {score: page.score}), new Map);
+    let mapper = this.verbose ? (map, page) => map.set(page.pageID, page)
+                              : (map, page) => map.set(page.pageID, {score: page.score});
+    let map = pages.reduce(mapper, new Map);
 
     let result = yield this.db.all(`
       select pageid, url, title from indexed join page on pageid = page.rowid

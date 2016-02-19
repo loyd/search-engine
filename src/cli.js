@@ -42,6 +42,11 @@ let argv = yargs
       number: true,
       default: 0
     })
+    .option('v', {
+      alias: 'verbose',
+      describe: 'provide more useful info',
+      boolean: true
+    })
   )
   .command('server', 'start the web server', yargs =>
     yargs
@@ -152,15 +157,28 @@ function search(argv) {
   let start = Date.now();
   let query = argv._.slice(1).join(' ');
 
-  let searcher = new Searcher(argv.database);
+  let searcher = new Searcher(argv.database, argv.verbose);
   searcher.search(query, argv.limit, argv.offset).then(handlePages).catch(console.error);
 
   function handlePages(pages) {
     if (pages.length === 0)
       console.log('Ooops! Where is it?');
 
-    for (let page of pages)
-      console.log('[%s] %s | %s', page.score.toFixed(2), page.title, decodeURI(page.url));
+    for (let page of pages) {
+      let [score, title, url] = [Math.round(page.score * 100), page.title, decodeURI(page.url)];
+
+      let str = `[${score}] ${title} | ${url}`;
+      if (str.length > process.stdout.columns)
+        str = str.slice(0, process.stdout.columns - 3) + '...';
+
+      console.log(str);
+
+      if (argv.verbose) {
+        let score = name => page.scores[name].toFixed(2);
+        console.log('     Scores: bm25: %s, cnt: %s, pos: %s, ref: %s, pr: %s\n',
+                    score('bm25'), score('cnt'), score('pos'), score('ref'), score('pr'));
+      }
+    }
 
     console.log('-'.repeat(process.stdout.columns));
     console.log('About %s results (%d seconds)', pages.total, (Date.now() - start) / 1000);
