@@ -1,0 +1,125 @@
+body {
+  background: #555 url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAB9JREFUeNpi/P//PwM6YGLAAuCCmpqacC2MRGsHCDAA+fIHfeQbO8kAAAAASUVORK5CYII=);
+  font: 15px 'lucida sans', 'trebuchet MS', 'Tahoma';
+  color: #eee;
+}
+
+a {
+  color: #ccc;
+}
+
+.search-form {
+  display: table;
+  margin: 50px auto 50px auto;
+  padding: 15px;
+  background: rgba(0, 0, 0, .2);
+  border-radius: 10px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .4) inset, 0 1px 0 rgba(255, 255, 255, .2);
+}
+
+.search-form input, .search-form button {
+  font-size: 1.1em;
+  font-weight: bold;
+  box-sizing: content-box;
+  height: 1em;
+  line-height: 1em;
+  padding: 14px;
+  border: 0;
+}
+
+.search-form input {
+  float: left;
+  width: 400px;
+  background: #eee;
+  border-radius: 3px 0 0 3px;
+}
+
+.search-form input:focus {
+  outline: 0;
+  background: #fff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, .8) inset;
+}
+
+.search-form button {
+  position: relative;
+  cursor: pointer;
+  color: #fff;
+  background: #d83c3c;
+  border-radius: 0 3px 3px 0;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .3);
+}
+
+.search-form button:hover {
+  background: #e54040;
+}
+
+.search-form button:active,
+.search-form button:focus {
+  background: #c42f2f;
+}
+
+.search-form button:before {
+  content: '';
+  position: absolute;
+  border-width: 8px 8px 8px 0;
+  border-style: solid solid solid none;
+  border-color: transparent #d83c3c transparent;
+  top: 50%;
+  margin-top: -8px;
+  left: -6px;
+}
+
+.search-form button:hover:before {
+  border-right-color: #e54040;
+}
+
+.search-form button:focus:before {
+  border-right-color: #c42f2f;
+}
+
+.search-form button::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+.meta {
+  text-align: center;
+}
+
+.entry {
+  display: table;
+  margin: 12px auto;
+  background: rgba(0, 0, 0, .2);
+  border-radius: 10px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .4) inset, 0 1px 0 rgba(255, 255, 255, .2);
+  font-size: 1em;
+  font-weight: bold;
+}
+
+.entry .score {
+  display: table-cell;
+  width: 50px;
+  font-size: 1.2em;
+  vertical-align: middle;
+  text-align: center;
+  background: rgba(60, 30, 30, .2);
+  border-radius: 3px 0 0 3px;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .3);
+}
+
+.entry .info {
+  width: 600px;
+  padding: 10px;
+  border: 0;
+  border-radius: 3px 0 0 3px;
+}
+
+.title, .url {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.url {
+  color: gray;
+}
