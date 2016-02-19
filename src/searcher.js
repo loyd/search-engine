@@ -102,10 +102,14 @@ export default class Searcher {
     let maxReferentPageRank = 0;
     let maxPageRank = 0;
 
+    const k = 1.5;
+    const b = .15;
+    const d = 1;
+
     for (let page of pages) {
-      let gain = 2 * (.25 + .75 * (page.wordCount / avgWordCount));
+      let gain = 1 - b + b * (page.wordCount / avgWordCount);
       page.bm25 = words.reduce((acc, w, i) =>
-        acc + w.idf * 3 * page['frequency'+i] / (page['frequency'+i] + gain), 0);
+        acc + w.idf * ((k+1) * page['frequency'+i] / (page['frequency'+i] + k*gain) + d), 0);
 
       maxBM25 = Math.max(maxBM25, page.bm25);
       maxTotalPosition = Math.max(maxTotalPosition, page.totalPosition);
@@ -127,6 +131,7 @@ export default class Searcher {
   }
 
   *fetchInfo(pages) {
+    //console.log(pages);
     let map = pages.reduce((map, page) => map.set(page.pageID, {score: page.score}), new Map);
 
     let result = yield this.db.all(`
