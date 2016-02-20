@@ -104,17 +104,23 @@ export default class Indexer extends Writable {
 
     yield db.run('begin');
 
-    let [words, wordCount] = this.prepareWords(page);
-    let wordGuard = this.indexWords(page, words, wordCount);
+    try {
+      let [words, wordCount] = this.prepareWords(page);
+      let wordGuard = this.indexWords(page, words, wordCount);
 
-    let title = page.title.slice(0, 256);
-    let indexGuard = db.run(`insert into indexed(pageid, title, wordcount, pagerank)
-                             values (?, ?, ?, 0.)`, page.id, title, wordCount);
+      let title = page.title.slice(0, 256);
+      let indexGuard = db.run(`insert into indexed(pageid, title, wordcount, pagerank)
+                               values (?, ?, ?, 0.)`, page.id, title, wordCount);
 
-    let links = this.prepareLinks(page);
-    let linkGuard = this.indexLinks(page, links);
+      let links = this.prepareLinks(page);
+      let linkGuard = this.indexLinks(page, links);
 
-    let [derived] = yield [linkGuard, wordGuard, indexGuard];
+      var [derived] = yield [linkGuard, wordGuard, indexGuard];
+    } catch (ex) {
+      yield db.run('rollback');
+      throw ex;
+    }
+
     yield db.run('commit');
 
     this.emit('indexed', page, derived);
