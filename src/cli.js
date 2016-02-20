@@ -20,6 +20,17 @@ let argv = yargs
       number: true,
       default: 5000
     })
+    .options('l', {
+      alias: 'loose',
+      describe: 'disable link filtering',
+      boolean: true
+    })
+    .options('s', {
+      alias: 'link-stem-limit',
+      describe: 'the maximum number of stems per link',
+      number: true,
+      default: 10
+    })
   )
   .command('pagerank', 'precalculate pagerank', yargs =>
     yargs
@@ -101,12 +112,15 @@ function crawl(argv) {
   let crawler = new Crawler({
     dbname: argv.database,
     urls: argv._.slice(1),
+    timeout: argv.timeout,
     ignoreNofollow: argv.ignoreNofollow,
-    timeout: argv.timeout
+    loose: argv.loose,
+    linkStemLimit: argv.linkStemLimit
   });
 
   crawler.on('downloaded', url => update('D', url));
   crawler.on('indexed', url => update('I', url));
+  crawler.on('error', ex => console.error(ex.stack));
 
   process.on('SIGINT', () => crawler.shutdown());
   process.on('exit', onexit);
@@ -147,6 +161,7 @@ function pagerank(argv) {
 
   calculator.on('changeState', console.log);
   calculator.calculatePageRank(argv.iterations);
+  calculator.on('error', ex => console.error(ex.stack));
 
   process.on('exit', _ => {
     console.log('-'.repeat(process.stdout.columns));
@@ -166,7 +181,9 @@ function search(argv) {
   let query = argv._.slice(1).join(' ');
 
   let searcher = new Searcher(argv.database, argv.verbose);
-  searcher.search(query, argv.limit, argv.offset).then(handlePages).catch(console.error);
+  searcher.search(query, argv.limit, argv.offset)
+          .then(handlePages)
+          .catch(ex => console.error(ex.stack));
 
   function handlePages(pages) {
     if (pages.length === 0)

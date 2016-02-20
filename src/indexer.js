@@ -54,8 +54,11 @@ const indices = [
 ];
 
 export default class Indexer extends Writable {
-  constructor(dbname) {
+  constructor(dbname, loose=false, linkStemLimit=10) {
     super({objectMode: true});
+
+    this.loose = loose;
+    this.linkStemLimit = linkStemLimit;
 
     this.db = null;
     this.pageCache = new Map;
@@ -85,18 +88,20 @@ export default class Indexer extends Writable {
   }
 
   *createPageIfUnknown(url) {
-    let origUrl = this.stripUrl(url.trim());
-    url = origUrl.toLowerCase();
-
-    if (!url.startsWith('http') || this.pageCache.has(url))
+    let urlObj = urllib.parse(url);
+    if (!this.guessRelevant(urlObj))
       return null;
 
-    let page = {
+    let origUrl = this.stripUrl(urlObj);
+    url = origUrl.toLowerCase();
+
+    if (this.pageCache.has(url))
+      return null;
+
+    return {
       url: origUrl,
       id: yield* this.takePageID(origUrl, url)
     };
-
-    return page;
   }
 
   *index(page) {
@@ -168,24 +173,22 @@ export default class Indexer extends Writable {
 
     for (let link of page.links) {
       let resolved = urllib.resolve(page.url, link.href);
-      let origUrl = this.stripUrl(resolved);
+      let urlObj = urllib.parse(resolved);
 
-      // Don't transfer the link juice to dynamic pages.
-      let questPos = link.href.indexOf('?');
-      if (~questPos) {
-        let hashPos = link.href.indexOf('#');
-        if (hashPos === -1 || questPos < hashPos)
-          link.nofollow = true;
-      }
+      if (!this.guessRelevant(urlObj))
+        continue;
+
+      let origUrl = this.stripUrl(urlObj);
 
       // It's an anchor. Drop out.
       if (origUrl === page.url)
         continue;
 
-      let url = origUrl.toLowerCase();
-      if (!url.startsWith('http'))
-        continue;
+      // Don't transfer the link juice to dynamic pages.
+      if (urlObj.query)
+        link.nofollow = true;
 
+      let url = origUrl.toLowerCase();
       let stored = links.get(url);
       if (!stored) {
         link.origUrl = origUrl;
@@ -201,7 +204,7 @@ export default class Indexer extends Writable {
         for (let stem of stemIter)
           if (stems.indexOf(stem) === -1) {
             stems.push(stem);
-            if (stems.length >= 10)
+            if (stems.length >= this.linkStemLimit)
               break;
           }
 
@@ -285,7 +288,41 @@ export default class Indexer extends Writable {
     return yield promise;
   }
 
-  stripUrl(url) {
-    return url.split(/[#?]/)[0];
+  stripUrl(urlObj) {
+    return `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
+  }
+
+  guessRelevant(urlObj) {
+    if (!urlObj.protocol.startsWith('http'))
+      return false;
+
+    if (this.loose)
+      return true;
+
+    //#TODO: what about blacklist?
+    let h = urlObj.hostname;
+    if (h.startsWith('git.') || h.startsWith('svn.') || h.startsWith('hg.'))
+      return false;
+
+    let p = urlObj.pathname;
+    let i = p.lastIndexOf('.');
+
+    // No extension or unlikely.
+    if (i === -1 || p.length - i > 6)
+      return true;
+
+    let ext = p.slice(i+1).toLowerCase();
+    switch (ext) {
+      case 'html': case 'htm': case 'xhtml': case 'xht': case 'asp': case 'aspx': case 'adp':
+      case 'bml': case 'cfm': case 'cgi': case 'ihtml': case 'jsp': case 'las': case 'lasso':
+      case 'pl': case 'phtml': case 'rna': case 'r': case 'rnx': case 'shtml': case 'stm':
+        return true;
+    }
+
+    // Case .php<version>.
+    if (ext.startsWith('php'))
+      return true;
+
+    return false;
   }
 }
