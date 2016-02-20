@@ -12,7 +12,7 @@ export default class Crawler extends EventEmitter {
   constructor(opts) {
     super();
 
-    let {dbname, urls, ignoreNofollow} = opts;
+    let {dbname, urls, ignoreNofollow, timeout} = opts;
 
     this.indexed = 0;
     this.downloaded = 0;
@@ -32,7 +32,7 @@ export default class Crawler extends EventEmitter {
       let extractor = this.extractor = new Extractor(ignoreNofollow);
       extractor.on('error', onerror);
 
-      let downloader = this.downloader = new Downloader;
+      let downloader = this.downloader = new Downloader(timeout);
       downloader.on('error', onerror);
       downloader.on('downloaded', page => {
         ++this.downloaded;

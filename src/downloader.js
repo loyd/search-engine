@@ -8,8 +8,9 @@ import {RequestError, StatusCodeError} from 'request-promise/errors';
 
 
 export default class Downloader extends Readable {
-  constructor(highWaterMark=32) {
+  constructor(timeout, highWaterMark=32) {
     super({highWaterMark, objectMode: true});
+    this.timeout = timeout;
     this.pages = [];
     this.wait = false;
     this.terminated = false;
@@ -63,7 +64,8 @@ export default class Downloader extends Readable {
             'AppleWebKit/534.7 (KHTML, like Gecko) Chrome/7.0.517.41 Safari/534.7',
         },
         gzip: true,
-        resolveWithFullResponse: true
+        resolveWithFullResponse: true,
+        timeout: this.timeout
       });
     } catch (ex) {
       if (!(ex instanceof RequestError || ex instanceof StatusCodeError))

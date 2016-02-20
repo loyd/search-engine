@@ -14,6 +14,12 @@ let argv = yargs
       describe: 'ignore rel="nofollow"',
       boolean: true
     })
+    .option('t', {
+      alias: 'timeout',
+      describe: 'the number of ms to wait for a response',
+      number: true,
+      default: 5000
+    })
   )
   .command('pagerank', 'precalculate pagerank', yargs =>
     yargs
@@ -94,7 +100,9 @@ function crawl(argv) {
 
   let crawler = new Crawler({
     dbname: argv.database,
-    urls: argv._.slice(1)
+    urls: argv._.slice(1),
+    ignoreNofollow: argv.ignoreNofollow,
+    timeout: argv.timeout
   });
 
   crawler.on('downloaded', url => update('D', url));
