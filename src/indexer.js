@@ -107,7 +107,7 @@ export default class Indexer extends Writable {
     let origUrl = this.stripUrl(urlObj);
     url = origUrl.toLowerCase();
 
-    let [id, known] = yield* this.takePageID(origUrl, url);
+    let [id, known] = yield* this.takePageID(origUrl);
     if (known)
       return null;
 
@@ -220,7 +220,7 @@ export default class Indexer extends Writable {
     let derived = [];
 
     for (let [url, link] of links) {
-      let [pageID, known] = yield* this.takePageID(link.origUrl, url);
+      let [pageID, known] = yield* this.takePageID(link.origUrl);
 
       if (!known)
         derived.push({url: link.origUrl, id: pageID});
@@ -237,7 +237,7 @@ export default class Indexer extends Writable {
     return derived;
   }
 
-  *takePageID(origUrl, url) {
+  *takePageID(origUrl) {
     let row = yield this.sql.selectPage.get(origUrl);
     let known = !!row;
     let id = row ? row.rowid : (yield this.sql.insertPage.run(origUrl)).lastID;
@@ -290,15 +290,12 @@ export default class Indexer extends Writable {
 
     let ext = p.slice(i+1).toLowerCase();
     switch (ext) {
-      case 'html': case 'htm': case 'xhtml': case 'xht': case 'asp': case 'aspx': case 'adp':
+      case 'html': case 'php': case 'asp': case 'aspx': case 'htm': case 'xhtml': case 'stm':
+      case 'phtml': case 'php3': case 'php4': case 'php5': case 'phps': case 'xht': case 'adp':
       case 'bml': case 'cfm': case 'cgi': case 'ihtml': case 'jsp': case 'las': case 'lasso':
-      case 'pl': case 'phtml': case 'rna': case 'r': case 'rnx': case 'shtml': case 'stm':
+      case 'pl': case 'rna': case 'r': case 'rnx': case 'shtml':
         return true;
     }
-
-    // Case .php<version>.
-    if (ext.startsWith('php'))
-      return true;
 
     return false;
   }
