@@ -10,37 +10,41 @@ import Stemmer from './stemmer';
 
 
 const tables = [
-  'page(url text not null collate nocase unique)',
+  `page(
+    rowid integer not null primary key,
+    url   text    not null collate nocase unique
+  )`,
 
   `word(
+    rowid     integer not null primary key,
     stem      text    not null unique,
     pagecount integer not null
   )`,
 
   `indexed(
-    pageid    integer not null primary key,
+    pageid    integer not null primary key references page(rowid),
     title     text    not null,
     wordcount integer not null,
     pagerank  real    not null
   ) without rowid`,
 
   `location(
-    wordid    integer not null,
-    pageid    integer not null,
+    wordid    integer not null references word(rowid),
+    pageid    integer not null references page(rowid),
     position  integer not null,
     frequency real    not null,
     primary key(wordid, pageid)
   ) without rowid`,
 
   `link(
-    fromid integer not null,
-    toid   integer not null
+    fromid integer not null references page(rowid),
+    toid   integer not null references page(rowid)
   )`,
 
   `linkword(
-    fromid integer not null,
-    toid   integer not null,
-    wordid integer not null
+    fromid integer not null references page(rowid),
+    toid   integer not null references page(rowid),
+    wordid integer not null references word(rowid)
   )`,
 
   `info(

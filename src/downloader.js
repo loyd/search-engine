@@ -8,7 +8,7 @@ import {RequestError, StatusCodeError} from 'request-promise/errors';
 
 
 export default class Downloader extends Readable {
-  constructor(timeout, highWaterMark=32) {
+  constructor(timeout=5000, highWaterMark=32) {
     super({highWaterMark, objectMode: true});
     this.timeout = timeout;
     this.pages = [];
