@@ -65,7 +65,6 @@ export default class Indexer extends Writable {
     this.linkStemLimit = linkStemLimit;
 
     this.db = null;
-    this.pageCache = new Map;
     this.wordCache = new Map;
     this.stemmer = new Stemmer;
 
@@ -75,10 +74,19 @@ export default class Indexer extends Writable {
       yield tables.map(tbl => db.run(`create table if not exists ${tbl}`));
       yield indices.map(idx => db.run(`create index if not exists ${idx}`));
 
-      let pages = yield db.all(`select pageid, lower(url) as url
-                                from indexed join page on pageid = page.rowid`);
-      for (let page of pages)
-        this.pageCache.set(page.url, page.pageid);
+      this.sql = yield {
+        insertIndexed: db.prepare(`insert into indexed(pageid, title, wordcount, pagerank)
+                                   values (?, ?, ?, 0.)`),
+        insertLink: db.prepare('insert into link(fromid, toid) values (?, ?)'),
+        insertLinkWord: db.prepare('insert into linkword(fromid, toid, wordid) values (?, ?, ?)'),
+        insertLocation: db.prepare(`insert into location(wordid, pageid, position, frequency)
+                                    values (?, ?, ?, ?)`),
+        insertPage: db.prepare('insert into page(url) values (?)'),
+        insertWord: db.prepare('insert into word(stem, pagecount) values (?, 0)'),
+        selectPage: db.prepare('select rowid from page where url = ?'),
+        selectWord: db.prepare('select rowid from word where stem = ?'),
+        updateWord: db.prepare('update word set pagecount = pagecount + 1 where rowid = ?')
+      };
 
       return this;
     });
@@ -99,13 +107,11 @@ export default class Indexer extends Writable {
     let origUrl = this.stripUrl(urlObj);
     url = origUrl.toLowerCase();
 
-    if (this.pageCache.has(url))
+    let [id, known] = yield* this.takePageID(origUrl, url);
+    if (known)
       return null;
 
-    return {
-      url: origUrl,
-      id: yield* this.takePageID(origUrl, url)
-    };
+    return {id, url: origUrl};
   }
 
   *index(page) {
@@ -118,8 +124,7 @@ export default class Indexer extends Writable {
       let wordGuard = this.indexWords(page, words, wordCount);
 
       let title = page.title.slice(0, 256);
-      let indexGuard = db.run(`insert into indexed(pageid, title, wordcount, pagerank)
-                               values (?, ?, ?, 0.)`, page.id, title, wordCount);
+      let indexGuard = this.sql.insertIndexed.run(page.id, title, wordCount);
 
       let links = this.prepareLinks(page);
       let linkGuard = this.indexLinks(page, links);
@@ -154,22 +159,12 @@ export default class Indexer extends Writable {
 
   *indexWords(page, words, wordCount) {
     let {db} = this;
-    let [$insertLocation, $updateWord] = yield [
-      db.prepare(`insert into location(wordid, pageid, position, frequency)
-                  values (?, ${page.id}, ?, ?)`),
-      db.prepare('update word set pagecount = pagecount + 1 where rowid = ?')
-    ];
 
     for (let [stem, word] of words) {
       let wordID = yield* this.takeWordID(stem);
-      $updateWord.run(wordID);
-      $insertLocation.run(wordID, word.position, word.count / wordCount);
+      this.sql.updateWord.run(wordID);
+      this.sql.insertLocation.run(wordID, page.id, word.position, word.count / wordCount);
     }
-
-    yield [
-      $updateWord.finalize(),
-      $insertLocation.finalize()
-    ];
   }
 
   prepareLinks(page) {
@@ -222,51 +217,31 @@ export default class Indexer extends Writable {
 
   *indexLinks(page, links) {
     let {db} = this;
-    let [$insertLink, $insertLinkWord] = yield [
-      db.prepare(`insert into link(fromid, toid) values (${page.id}, ?)`),
-      db.prepare(`insert into linkword(fromid, toid, wordid) values (${page.id}, ?, ?)`)
-    ];
-
     let derived = [];
 
     for (let [url, link] of links) {
-      let known = this.pageCache.has(url);
-      let pageID = yield* this.takePageID(link.origUrl, url);
+      let [pageID, known] = yield* this.takePageID(link.origUrl, url);
 
       if (!known)
         derived.push({url: link.origUrl, id: pageID});
 
       if (!link.nofollow) {
-        $insertLink.run(pageID);
+        this.sql.insertLink.run(page.id, pageID);
 
         let wordIDs = yield link.stems.map(stem => this.takeWordID(stem));
         for (let wordID of wordIDs)
-          $insertLinkWord.run(pageID, wordID);
+          this.sql.insertLinkWord.run(page.id, pageID, wordID);
       }
     }
-
-    yield [
-      $insertLink.finalize(),
-      $insertLinkWord.finalize()
-    ];
 
     return derived;
   }
 
   *takePageID(origUrl, url) {
-    let cache = this.pageCache;
-    let id = cache.get(url);
-
-    if (!id) {
-      id = (
-        (yield this.db.get('select rowid as lastID from page where url = ?', origUrl)) ||
-        (yield this.db.run('insert into page(url) values (?)', origUrl))
-      ).lastID;
-
-      cache.set(url, id);
-    }
-
-    return id;
+    let row = yield this.sql.selectPage.get(origUrl);
+    let known = !!row;
+    let id = row ? row.rowid : (yield this.sql.insertPage.run(origUrl)).lastID;
+    return [id, known];
   }
 
   *takeWordID(stem) {
@@ -279,10 +254,8 @@ export default class Indexer extends Writable {
       return yield id;
 
     let promise = co.call(this, function*() {
-      let id = (
-        (yield this.db.get('select rowid as lastID from word where stem = ?', stem)) ||
-        (yield this.db.run('insert into word(stem, pagecount) values (?, 0)', stem))
-      ).lastID;
+      let row = yield this.sql.selectWord.get(stem);
+      let id = row ? row.rowid : (yield this.sql.insertWord.run(stem)).lastID;
 
       cache.set(stem, id);
       return id;
