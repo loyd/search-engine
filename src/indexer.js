@@ -11,45 +11,49 @@ import Stemmer from './stemmer';
 
 const tables = [
   `page(
-    rowid integer not null primary key,
-    url   text    not null collate nocase unique
+    pageid integer not null primary key,
+    url    text    not null collate nocase unique
   )`,
 
   `word(
-    rowid     integer not null primary key,
-    stem      text    not null unique,
-    pagecount integer not null
+    wordid   integer not null primary key,
+    stem     text    not null unique,
+    numpages integer not null,
+    numheads integer not null
   )`,
 
   `indexed(
-    pageid    integer not null primary key references page(rowid),
-    title     text    not null,
-    wordcount integer not null,
-    pagerank  real    not null
+    pageid   integer not null primary key references page(pageid),
+    title    text    not null,
+    numwords integer not null,
+    numheads integer not null,
+    pagerank real    not null
   ) without rowid`,
 
   `location(
-    wordid    integer not null references word(rowid),
-    pageid    integer not null references page(rowid),
-    position  integer not null,
-    frequency real    not null,
+    wordid   integer not null references word(wordid),
+    pageid   integer not null references page(pageid),
+    position integer not null,
+    wordfreq real    not null,
+    headfreq real    not null,
     primary key(wordid, pageid)
   ) without rowid`,
 
   `link(
-    fromid integer not null references page(rowid),
-    toid   integer not null references page(rowid)
+    fromid integer not null references page(pageid),
+    toid   integer not null references page(pageid)
   )`,
 
   `linkword(
-    fromid integer not null references page(rowid),
-    toid   integer not null references page(rowid),
-    wordid integer not null references word(rowid)
+    fromid integer not null references page(pageid),
+    toid   integer not null references page(pageid),
+    wordid integer not null references word(wordid)
   )`,
 
   `info(
-    indexedcount integer not null,
-    avgwordcount real not null
+    numindexed  integer not null,
+    avgnumwords real    not null,
+    avgnumheads real    not null
   )`
 ];
 
@@ -75,17 +79,20 @@ export default class Indexer extends Writable {
       yield indices.map(idx => db.run(`create index if not exists ${idx}`));
 
       this.sql = yield {
-        insertIndexed: db.prepare(`insert into indexed(pageid, title, wordcount, pagerank)
-                                   values (?, ?, ?, 0.)`),
+        insertIndexed: db.prepare(`insert into indexed(pageid, title, numwords, numheads, pagerank)
+                                   values (?, ?, ?, ?, 0.)`),
         insertLink: db.prepare('insert into link(fromid, toid) values (?, ?)'),
         insertLinkWord: db.prepare('insert into linkword(fromid, toid, wordid) values (?, ?, ?)'),
-        insertLocation: db.prepare(`insert into location(wordid, pageid, position, frequency)
-                                    values (?, ?, ?, ?)`),
+        insertLocation: db.prepare(`insert into
+                                    location(wordid, pageid, position, wordfreq, headfreq)
+                                    values (?, ?, ?, ?, ?)`),
         insertPage: db.prepare('insert into page(url) values (?)'),
-        insertWord: db.prepare('insert into word(stem, pagecount) values (?, 0)'),
-        selectPage: db.prepare('select rowid from page where url = ?'),
-        selectWord: db.prepare('select rowid from word where stem = ?'),
-        updateWord: db.prepare('update word set pagecount = pagecount + 1 where rowid = ?')
+        insertWord: db.prepare('insert into word(stem, numpages, numheads) values (?, 0, 0)'),
+        selectPage: db.prepare('select pageid from page where url = ?'),
+        selectWord: db.prepare('select wordid from word where stem = ?'),
+        updateWord: db.prepare('update word set numpages = numpages + 1 where wordid = ?'),
+        updateHeadWord: db.prepare(`update word set numpages = numpages + 1,
+                                                    numheads = numheads + 1 where wordid = ?`),
       };
 
       return this;
@@ -104,14 +111,13 @@ export default class Indexer extends Writable {
     if (!this.guessRelevant(urlObj))
       return null;
 
-    let origUrl = this.stripUrl(urlObj);
-    url = origUrl.toLowerCase();
+    url = this.stripUrl(urlObj);
 
-    let [id, known] = yield* this.takePageID(origUrl);
+    let [id, known] = yield* this.takePageID(url);
     if (known)
       return null;
 
-    return {id, url: origUrl};
+    return {id, url};
   }
 
   *index(page) {
@@ -120,11 +126,11 @@ export default class Indexer extends Writable {
     yield db.run('begin');
 
     try {
-      let [words, wordCount] = this.prepareWords(page);
-      let wordGuard = this.indexWords(page, words, wordCount);
+      let [words, numWords, numHeads] = this.prepareWords(page);
+      let wordGuard = this.indexWords(page, words, numWords, numHeads);
 
       let title = page.title.slice(0, 256);
-      let indexGuard = this.sql.insertIndexed.run(page.id, title, wordCount);
+      let indexGuard = this.sql.insertIndexed.run(page.id, title, numWords, numHeads);
 
       let links = this.prepareLinks(page);
       let linkGuard = this.indexLinks(page, links);
@@ -141,29 +147,45 @@ export default class Indexer extends Writable {
   }
 
   prepareWords(page) {
-    let stemIter = this.stemmer.tokenizeAndStem(page.content);
     let words = new Map;
+
+    let stemIter = this.stemmer.tokenizeAndStem(`${page.title} ${page.content}`);
     let position = 0;
 
     for (let stem of stemIter) {
       if (words.has(stem))
-        ++words.get(stem).count;
+        ++words.get(stem).numWords;
       else
-        words.set(stem, {position, count: 1});
+        words.set(stem, {position, numWords: 1, numHeads: 0});
 
       ++position;
     }
 
-    return [words, position];
+    let headStemIter = this.stemmer.tokenizeAndStem(`${page.title} ${page.headers}`);
+    let numHeads = 0;
+
+    for (let stem of headStemIter) {
+      ++words.get(stem).numHeads;
+      ++numHeads;
+    }
+
+    return [words, position, numHeads];
   }
 
-  *indexWords(page, words, wordCount) {
+  *indexWords(page, words, numWords, numHeads) {
     let {db} = this;
 
     for (let [stem, word] of words) {
       let wordID = yield* this.takeWordID(stem);
-      this.sql.updateWord.run(wordID);
-      this.sql.insertLocation.run(wordID, page.id, word.position, word.count / wordCount);
+
+      if (word.numHeads) {
+        let [wordFreq, headFreq] = [word.numWords / numWords, word.numHeads / numHeads];
+        this.sql.updateHeadWord.run(wordID);
+        this.sql.insertLocation.run(wordID, page.id, word.position, wordFreq, headFreq);
+      } else {
+        this.sql.updateWord.run(wordID);
+        this.sql.insertLocation.run(wordID, page.id, word.position, word.numWords / numWords, 0);
+      }
     }
   }
 
@@ -177,26 +199,29 @@ export default class Indexer extends Writable {
       if (!this.guessRelevant(urlObj))
         continue;
 
-      let origUrl = this.stripUrl(urlObj);
+      let url = this.stripUrl(urlObj);
 
       // It's an anchor. Drop out.
-      if (origUrl === page.url)
+      if (url === page.url)
         continue;
 
       // Don't transfer the link juice to dynamic pages.
       if (urlObj.query)
         link.nofollow = true;
 
-      let url = origUrl.toLowerCase();
-      let stored = links.get(url);
+      let lowerUrl = url.toLowerCase();
+      let stored = links.get(lowerUrl);
       if (!stored) {
-        link.origUrl = origUrl;
-        links.set(url, link);
+        link.url = url;
+        links.set(lowerUrl, link);
         stored = link;
       }
 
+      if (!link.nofollow)
+        stored.nofollow = false;
+
       // Collect unique stems from the text.
-      if (!link.nofollow) {
+      if (link.text && !link.nofollow) {
         let stemIter = this.stemmer.tokenizeAndStem(link.text);
         let stems = stored.stems = stored.stems || [];
 
@@ -206,9 +231,6 @@ export default class Indexer extends Writable {
             if (stems.length >= this.linkStemLimit)
               break;
           }
-
-        if (stored === link || stored.nofollow)
-          stored.nofollow = false;
       }
     }
 
@@ -219,15 +241,16 @@ export default class Indexer extends Writable {
     let {db} = this;
     let derived = [];
 
-    for (let [url, link] of links) {
-      let [pageID, known] = yield* this.takePageID(link.origUrl);
+    for (let link of links.values()) {
+      let [pageID, known] = yield* this.takePageID(link.url);
 
       if (!known)
-        derived.push({url: link.origUrl, id: pageID});
+        derived.push({url: link.url, id: pageID});
 
-      if (!link.nofollow) {
+      if (!link.nofollow)
         this.sql.insertLink.run(page.id, pageID);
 
+      if (link.stems) {
         let wordIDs = yield link.stems.map(stem => this.takeWordID(stem));
         for (let wordID of wordIDs)
           this.sql.insertLinkWord.run(page.id, pageID, wordID);
@@ -237,10 +260,10 @@ export default class Indexer extends Writable {
     return derived;
   }
 
-  *takePageID(origUrl) {
-    let row = yield this.sql.selectPage.get(origUrl);
+  *takePageID(url) {
+    let row = yield this.sql.selectPage.get(url);
     let known = !!row;
-    let id = row ? row.rowid : (yield this.sql.insertPage.run(origUrl)).lastID;
+    let id = row ? row.pageid : (yield this.sql.insertPage.run(url)).lastID;
     return [id, known];
   }
 
@@ -255,7 +278,7 @@ export default class Indexer extends Writable {
 
     let promise = co.call(this, function*() {
       let row = yield this.sql.selectWord.get(stem);
-      let id = row ? row.rowid : (yield this.sql.insertWord.run(stem)).lastID;
+      let id = row ? row.wordid : (yield this.sql.insertWord.run(stem)).lastID;
 
       cache.set(stem, id);
       return id;

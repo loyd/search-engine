@@ -11,64 +11,95 @@ class Handler extends Readability {
     super({searchFurtherPages: false});
 
     this.nofollow = !ignoreNofollow;
-
-    // Nesting <a> element is forbidden in HTML(5). Ignore it.
-    this.nested = 0;
     this.links = [];
-    this.link = null;
   }
 
   onopentag(name, attribs) {
-    if (name === 'a')
-      if (this.nested++ === 0) {
-        let href, rel;
-
-        for (let [name, value] of this.attribs(attribs))
-          if (name === 'href')
-            href = value;
-          else if (name === 'rel')
-            rel = value;
-
-        if (href) {
-          let nofollow = this.nofollow && !!rel && rel.toLowerCase().indexOf('nofollow') !== -1;
-          this.link = {href, text: '', nofollow};
+    if (name === 'a') {
+      let href = this.findAttr(attribs, 'href');
+      if (href) {
+        let nofollow;
+        if (this.nofollow) {
+          let rel = this.findAttr(attribs, 'rel');
+          nofollow = rel && ~rel.toLowerCase().indexOf('nofollow');
         }
-      }
 
-      super.onopentag && super.onopentag(name, attribs);
+        this.links.push(nofollow ? {href, nofollow} : {href});
+      }
+    }
+
+    super.onopentag && super.onopentag(name, attribs);
+  }
+
+  onreset() {
+    this.links = [];
+    super.onreset();
+  }
+
+  findAttr(attribs, name) {
+    if (name in attribs)
+      return attribs[name];
+
+    name = Object.keys(attribs).find(a => a.toLowerCase() === name);
+    return name && attribs[name];
+  }
+}
+
+class InfoCollector {
+  constructor(ignoreNofollow) {
+    this.nofollow = !ignoreNofollow;
+    this.reset();
+  }
+
+  onopentag(name, attribs) {
+    if (name === 'a') {
+      if (this.linkNesting++ === 0) {
+        let {href, rel} = attribs;
+        if (!href)
+          return;
+
+        let nofollow = this.nofollow && rel && ~rel.toLowerCase().indexOf('nofollow');
+        if (nofollow)
+          return;
+
+        this.link = {href, text: ''};
+      }
+    } else if (this.isHeader(name))
+      ++this.headerNesting;
   }
 
   ontext(text) {
-    if (this.nested && this.link)
+    if (this.linkNesting && this.link)
       this.link.text += text + ' ';
 
-    super.ontext(text);
+    if (this.headerNesting)
+      this.headers += text + ' ';
   }
 
   onclosetag(name) {
     if (name === 'a') {
-      if (this.nested === 1 && this.link) {
+      if (this.linkNesting === 1 && this.link) {
         this.links.push(this.link);
         this.link = null;
       }
 
-      this.nested = Math.max(this.nested - 1, 0);
-    }
-
-    super.onclosetag(name);
+      this.linkNesting = Math.max(this.linkNesting - 1, 0);
+    } else if (this.isHeader(name))
+      this.headerNesting = Math.max(this.headerNesting - 1, 0);
   }
 
-  onreset() {
-    this.nested = 0;
-    this.links.length = 0;
+  reset() {
+    // Nesting <a>, <h*> elements is forbidden in HTML. Ignore it.
+    this.linkNesting = 0;
+    this.headerNesting = 0;
+
+    this.links = [];
     this.link = null;
-
-    super.onreset();
+    this.headers = '';
   }
 
-  *attribs(attribs) {
-    for (let name in attribs)
-      yield [name.toLowerCase(), attribs[name]];
+  isHeader(name) {
+    return name.length === 2 && name[0] === 'h';
   }
 }
 
@@ -78,18 +109,21 @@ export default class Extractor extends Transform {
 
     this.handler = new Handler(ignoreNofollow);
     this.parser = new Parser(this.handler);
+    this.collector = new InfoCollector(ignoreNofollow);
   }
 
   _transform(page, _, cb) {
-    try {
-      this.parser.parseComplete(page.body);
-    } catch (ex) {
-      return cb(ex);
-    }
+    this.collector.reset();
+    this.parser.parseComplete(page.body);
+    this.handler.getEvents(this.collector);
+
+    let links = this.handler.links;
+    links.push(...this.collector.links);
 
     page.title = this.handler.getTitle();
     page.content = this.handler.getText();
-    page.links = this.handler.links.slice();
+    page.headers = this.collector.headers;
+    page.links = links;
 
     cb(null, page);
   }
