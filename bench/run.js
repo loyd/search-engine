@@ -12,7 +12,7 @@ let downloader, indexer, extractor;
 co(function*() {
   let pages;
 
-  downloader = new Downloader;
+  downloader = new Downloader(10000);
   extractor = new Extractor;
 
   console.time('Initialization');
