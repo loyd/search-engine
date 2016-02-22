@@ -92,8 +92,14 @@ export default class Indexer extends Writable {
         selectWord: db.prepare('select wordid from word where stem = ?'),
         updateWord: db.prepare('update word set numpages = numpages + 1 where wordid = ?'),
         updateHeadWord: db.prepare(`update word set numpages = numpages + 1,
-                                                    numheads = numheads + 1 where wordid = ?`),
+                                                    numheads = numheads + 1 where wordid = ?`)
       };
+
+      this.on('finish', () => {
+        for (let name in this.sql)
+          this.sql[name].finalize();
+        db.close();
+      });
 
       return this;
     });
