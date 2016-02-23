@@ -74,6 +74,8 @@ class InfoCollector {
 
     if (this.headerNesting)
       this.headers += text + ' ';
+
+    this.content += text + ' ';
   }
 
   onclosetag(name) {
@@ -95,6 +97,7 @@ class InfoCollector {
 
     this.links = [];
     this.link = null;
+    this.content = '';
     this.headers = '';
   }
 
@@ -121,7 +124,7 @@ export default class Extractor extends Transform {
     links.push(...this.collector.links);
 
     page.title = this.handler.getTitle();
-    page.content = this.handler.getText();
+    page.content = this.collector.content;
     page.headers = this.collector.headers;
     page.links = links;
 
