@@ -14,16 +14,30 @@ let argv = yargs
       describe: 'ignore rel="nofollow"',
       boolean: true
     })
-    .option('t', {
-      alias: 'timeout',
-      describe: 'the number of ms to wait for a response',
+    .options('m', {
+      alias: 'max-depth',
+      describe: 'how far the crawler can go',
       number: true,
-      default: 5000
+      default: 3
     })
     .options('l', {
       alias: 'loose',
       describe: 'disable link filtering',
       boolean: true
+    })
+    .option('t', {
+      alias: 'timeout',
+      describe: 'a waiting time for a response',
+      number: true,
+      default: 15,
+      defaultDescription: 's'
+    })
+    .option('r', {
+      alias: 'relax-time',
+      descibe: 'a waiting time of an empty domain',
+      number: true,
+      default: 10,
+      defaultDescription: 'm'
     })
     .options('s', {
       alias: 'link-stem-limit',
@@ -112,9 +126,11 @@ function crawl(argv) {
   let crawler = new Crawler({
     dbname: argv.database,
     urls: argv._.slice(1),
-    timeout: argv.timeout,
     ignoreNofollow: argv.ignoreNofollow,
+    maxDepth: argv.maxDepth,
     loose: argv.loose,
+    relaxTime: argv.relaxTime,
+    timeout: argv.timeout,
     linkStemLimit: argv.linkStemLimit
   });
 

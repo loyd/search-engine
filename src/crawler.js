@@ -1,7 +1,8 @@
 "use strict";
 
-import co from 'co';
 import EventEmitter from 'events';
+
+import co from 'co';
 
 import Downloader from './downloader';
 import Extractor from './extractor';
@@ -12,37 +13,40 @@ export default class Crawler extends EventEmitter {
   constructor(opts) {
     super();
 
-    this.indexed = 0;
-    this.downloaded = 0;
+    console.log(opts);
 
-    let onerror = ex => this.emit('error', ex);
+    this.downloaded = 0;
+    this.indexed = 0;
+
+    this.indexer = new Indexer;
+
+    this.downloader = new Downloader(page => this.extractor.extract(page),
+                                     opts.maxDepth, opts.loose, opts.relaxTime, opts.timeout);
+
+    this.extractor = new Extractor(urlObj => this.downloader.filter(urlObj),
+                                   opts.ignoreNofollow, opts.linkStemLimit);
+
+    this.downloader.on('downloaded', url => {
+      ++this.downloaded;
+      this.emit('downloaded', decodeURI(url));
+    });
+
+    this.downloader.on('error', ex => this.emit('error', ex));
 
     co.call(this, function*() {
-      let indexer = this.indexer = yield new Indexer(opts.dbname, opts.loose, opts.linkStemLimit);
+      this.downloader.seed(opts.urls.map(encodeURI));
+      yield* this.indexer.connect(opts.dbname);
+      yield* this.loop();
+    }).catch(ex => this.emit('error', ex));
+  }
 
-      indexer.on('error', onerror);
-      indexer.on('indexed', (page, derived) => {
-        ++this.indexed;
-        this.emit('indexed', decodeURI(page.url));
-        downloader.enqueue(derived);
-      });
-
-      let extractor = this.extractor = new Extractor(opts.ignoreNofollow);
-      extractor.on('error', onerror);
-
-      let downloader = this.downloader = new Downloader(opts.timeout);
-      downloader.on('error', onerror);
-      downloader.on('downloaded', page => {
-        ++this.downloaded;
-        this.emit('downloaded', decodeURI(page.url));
-      });
-
-      let pages = yield opts.urls.map(url => indexer.createPageIfUnknown(encodeURI(url)));
-      pages = pages.filter(page => page);
-
-      downloader.enqueue(pages);
-      downloader.pipe(extractor).pipe(indexer);
-    }).catch(onerror);
+  *loop() {
+    for (;;) {
+      let page = yield* this.downloader.dequeue();
+      yield* this.indexer.index(page);
+      ++this.indexed;
+      this.emit('indexed', decodeURI(page.url));
+    }
   }
 
   shutdown() {
