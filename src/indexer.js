@@ -104,6 +104,8 @@ export default class Indexer {
       // Ignore duplicates.
       if (ex.message.indexOf('UNIQUE') === -1)
         throw ex;
+      else
+        return;
     }
 
     try {
