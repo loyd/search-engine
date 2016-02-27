@@ -12,6 +12,8 @@ import {BloomFilter} from 'bloomfilter';
 import * as robotstxt from './robotstxt';
 
 
+const reAlienUrlChar = /[^\x00-\xFFа-яА-ЯёЁ]/g;
+
 export default class Downloader extends EventEmitter {
   static domainComparator(a, b) {
     return a.wakeUp < b.wakeUp;
@@ -294,7 +296,14 @@ export default class Downloader extends EventEmitter {
     if (this.loose)
       return true;
 
-    let match = decodeURI(urlObj.pathname).match(/[^\x00-\xFFа-яА-ЯёЁ]/g);
+    let decoded;
+    try {
+      decoded = decodeURI(urlObj.pathname);
+    } catch (_) {
+      decoded = urlObj.pathname;
+    }
+
+    let match = decoded.match(reAlienUrlChar);
     if (match && match.length > 2)
       return false;
 
