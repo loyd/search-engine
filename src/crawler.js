@@ -13,8 +13,6 @@ export default class Crawler extends EventEmitter {
   constructor(opts) {
     super();
 
-    console.log(opts);
-
     this.downloaded = 0;
     this.indexed = 0;
 
@@ -34,8 +32,9 @@ export default class Crawler extends EventEmitter {
     this.downloader.on('error', ex => this.emit('error', ex));
 
     co.call(this, function*() {
-      this.downloader.seed(opts.urls.map(encodeURI));
       yield* this.indexer.connect(opts.dbname);
+      yield this.indexer.each(url => this.downloader.markAsKnown(url));
+      this.downloader.seed(opts.urls.map(encodeURI));
       yield* this.loop();
     }).catch(ex => this.emit('error', ex));
   }

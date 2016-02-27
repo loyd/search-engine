@@ -7,6 +7,7 @@ import co from 'co';
 import request from 'request-promise';
 import {RequestError, StatusCodeError} from 'request-promise/errors';
 import PriorityQueue from 'fastpriorityqueue';
+import {BloomFilter} from 'bloomfilter';
 
 import * as robotstxt from './robotstxt';
 
@@ -18,6 +19,12 @@ export default class Downloader extends EventEmitter {
 
   static pageComparator(a, b) {
     return a.depth === b.depth ? a.penalty < b.penalty : a.depth < b.depth;
+  }
+
+  static calcBloomParams(count, prob) {
+    let m = Math.ceil(-count * Math.log(prob)/Math.LN2/Math.LN2);
+    let k = Math.round(Math.LN2 * m / count);
+    return [m, k];
   }
 
   constructor(extract, maxDepth=3, loose=false, relaxTime=10, timeout=15, highWaterMark=64) {
@@ -33,7 +40,9 @@ export default class Downloader extends EventEmitter {
 
     this.domains = new PriorityQueue(Downloader.domainComparator);
     this.domainCache = new Map;
-    this.knownUrls = new Set;
+
+    let approxUrlCount = Math.min(Math.pow(256, maxDepth - 1), 1e7);
+    this.knownUrlSet = new BloomFilter(...Downloader.calcBloomParams(approxUrlCount, 0.00001));
 
     this.queue = [];
     this.waiter = null;
@@ -59,6 +68,10 @@ export default class Downloader extends EventEmitter {
 
   shutdown() {
     this.highWaterMark = -Infinity;
+  }
+
+  markAsKnown(url) {
+    this.knownUrlSet.add(url.toLowerCase());
   }
 
   seed(urls) {
@@ -103,7 +116,7 @@ export default class Downloader extends EventEmitter {
     for (let link of source.links) {
       let lowerUrl = link.url.toLowerCase();
 
-      if (this.knownUrls.has(lowerUrl))
+      if (this.knownUrlSet.test(lowerUrl))
         return false;
 
       let secure = link.protocol === 'https:';
@@ -119,7 +132,7 @@ export default class Downloader extends EventEmitter {
         page.secure = secure;
 
       domain.pages.add(page);
-      this.knownUrls.add(lowerUrl);
+      this.knownUrlSet.add(lowerUrl);
     }
   }
 
