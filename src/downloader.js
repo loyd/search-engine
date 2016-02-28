@@ -269,7 +269,7 @@ export default class Downloader extends EventEmitter {
         resolveWithFullResponse: true,
         timeout: this.timeout,
         time: true
-      });
+      }).setMaxListeners(64 /* Shut up! */);
     } catch (ex) {
       if (~url.indexOf('wikipedia') && url.endsWith('robots.txt')) {
         console.error(ex);
