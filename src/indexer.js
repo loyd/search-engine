@@ -137,7 +137,7 @@ export default class Indexer {
       let wordFreq = word.numWords / page.numWords;
 
       if (word.numHeads) {
-        let headFreq = wordFreq = word.numHeads / page.numHeads;
+        let headFreq = word.numHeads / page.numHeads;
         guards.push(sql.updateHeadWord.run(wordID));
         guards.push(sql.insertLocation.run(wordID, page.id, word.position, wordFreq, headFreq));
       } else {
