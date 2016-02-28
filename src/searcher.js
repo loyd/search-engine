@@ -90,12 +90,11 @@ export default class Searcher {
         ${select}
 
       from location l0 ${from}
-      join indexed idx using(pageid)
-      left join linkword on idx.pageid = toid
-      join indexed fromidx on fromidx.pageid = fromid
+      join indexed idx using (pageid)
+      left join linkword lw on idx.pageid = toid and lw.wordid in (${wordIDs.join(', ')})
+      left join indexed fromidx on fromidx.pageid = fromid
 
       where ${where}
-      and linkword.wordid in (${wordIDs.join(', ')})
       group by l0.pageid
     `;
 
