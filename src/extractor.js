@@ -5,6 +5,7 @@ import punycode from 'punycode';
 
 import {Parser} from 'htmlparser2';
 import {Readability} from 'readabilitySAX';
+import entities from 'entities';
 
 import Stemmer from './stemmer';
 
@@ -119,7 +120,8 @@ class InfoCollector {
 
   prepareText(text, isHeader) {
     let {words} = this;
-    let stemIter = this.stemmer.tokenizeAndStem(text);
+    let decoded = entities.decodeHTML(text);
+    let stemIter = this.stemmer.tokenizeAndStem(decoded);
 
     for (let stem of stemIter) {
       ++this.numWords;
@@ -236,7 +238,7 @@ export default class Extractor {
   extract(page) {
     this.parser.parseComplete(page.body);
 
-    let title = this.handler.getTitle();
+    let title = entities.decodeHTML(this.handler.getTitle());
     this.collector.setup(page.url, title, this.handler.links);
     this.handler.getEvents(this.collector);
 
