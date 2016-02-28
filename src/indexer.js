@@ -90,11 +90,9 @@ export default class Indexer {
     return new Indexer(db);
   }
 
-  each(cb) {
-    return new Promise((resolve, reject) =>
-      this.db.db.each('select url from indexed join page using (pageid)',
-                      (_, {url}) => cb(url),
-                      err => err ? reject(err) : resolve()));
+  *each(cb) {
+    return yield complete => this.db.db.each('select url from indexed join page using (pageid)',
+                                             (_, {url}) => cb(url), complete);
   }
 
   *index(page) {

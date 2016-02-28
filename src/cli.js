@@ -105,6 +105,9 @@ let argv = yargs
   .strict()
   .argv;
 
+if (argv._[0] === 'crawl')
+  process.env.UV_THREADPOOL_SIZE = 64;
+
 import Crawler from './crawler';
 import PRCalculator from './prcalculator';
 import Searcher from './searcher';
@@ -132,19 +135,19 @@ function crawl(argv) {
     linkStemLimit: argv.linkStemLimit
   });
 
-  crawler.on('downloaded', url => update('D', url));
-  crawler.on('indexed', url => update('I', url));
+  crawler.on('downloaded', (url, size) => update('D', url, size));
+  crawler.on('indexed', (url, size) => update('I', url, size));
   crawler.on('error', ex => console.error(ex.stack));
 
   process.on('SIGINT', () => crawler.shutdown());
   process.on('exit', onexit);
 
-  function update(act, url) {
+  function update(act, url, size) {
     let down = crawler.downloaded;
     let idx = crawler.indexed;
     let spnt = spent(start);
 
-    let str = `D: ${down}   I: ${idx}   S: ${spnt}   [${act}] ${url}`;
+    let str = `D: ${down}   I: ${idx}   S: ${spnt}   Q: ${size}   [${act}] ${url}`;
 
     if (str.length > process.stdout.columns)
       str = str.slice(0, process.stdout.columns - 3) + '...';

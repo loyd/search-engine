@@ -26,14 +26,14 @@ export default class Crawler extends EventEmitter {
 
     this.downloader.on('downloaded', url => {
       ++this.downloaded;
-      this.emit('downloaded', decodeURI(url));
+      this.emit('downloaded', this.decodeURI(url), this.downloader.domains.size);
     });
 
     this.downloader.on('error', ex => this.emit('error', ex));
 
     co.call(this, function*() {
       yield* this.indexer.connect(opts.dbname);
-      yield this.indexer.each(url => this.downloader.markAsKnown(url));
+      yield* this.indexer.each(url => this.downloader.markAsKnown(url));
       this.downloader.seed(opts.urls.map(encodeURI));
       yield* this.loop();
     }).catch(ex => this.emit('error', ex));
@@ -44,11 +44,19 @@ export default class Crawler extends EventEmitter {
       let page = yield* this.downloader.dequeue();
       yield* this.indexer.index(page);
       ++this.indexed;
-      this.emit('indexed', decodeURI(page.url));
+      this.emit('indexed', this.decodeURI(page.url), this.downloader.domains.size);
     }
   }
 
   shutdown() {
     this.downloader.shutdown();
+  }
+
+  decodeURI(url) {
+    try {
+      return decodeURI(url);
+    } catch (_) {
+      return url;
+    }
   }
 }
