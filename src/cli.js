@@ -76,7 +76,7 @@ let argv = yargs
     .option('v', {
       alias: 'verbose',
       describe: 'provide more useful info',
-      boolean: true
+      count: true
     })
   )
   .command('server', 'start the web server', yargs =>
@@ -215,11 +215,20 @@ function search(argv) {
 
       console.log(str);
 
-      if (argv.verbose) {
+      if (argv.verbose > 0) {
         let score = name => page.scores[name].toFixed(2);
-        console.log('     Scores: wbm: %s, hbm: %s, cnt: %s, pos: %s, ref: %s, pr: %s\n',
+        console.log('     scores: wbm=%s hbm=%s cnt=%s pos=%s ref=%s pr=%s',
           score('wbm'), score('hbm'), score('cnt'), score('pos'), score('ref'), score('pr'));
       }
+
+      if (argv.verbose > 1) {
+        console.log('     words: %d   heads: %d   total pos: %d   PR: %s   ref PR: %s',
+          page.numWords, page.numHeads, page.totalPosition,
+          page.pageRank.toFixed(2), page.referentPageRank.toFixed(2));
+      }
+
+      if (argv.verbose > 0)
+        console.log('');
     }
 
     if (empty)
