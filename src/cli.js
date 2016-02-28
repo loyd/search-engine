@@ -22,26 +22,24 @@ let argv = yargs
     })
     .options('l', {
       alias: 'loose',
-      describe: 'disable link filtering',
+      describe: 'alleviate link filtering',
       boolean: true
     })
     .option('t', {
       alias: 'timeout',
       describe: 'a waiting time for a response',
       number: true,
-      default: 15,
-      defaultDescription: 's'
+      default: 15
     })
     .option('r', {
       alias: 'relax-time',
-      descibe: 'a waiting time of an empty domain',
+      describe: 'how long to hold an empty domain',
       number: true,
-      default: 10,
-      defaultDescription: 'm'
+      default: 10
     })
     .options('s', {
       alias: 'link-stem-limit',
-      describe: 'the maximum number of stems per link',
+      describe: 'limit stems per link',
       number: true,
       default: 10
     })
