@@ -50,11 +50,17 @@ function update(err, data) {
     current: currentPage
   });
 
-  $result.innerHTML = data.result.map(entry => entryTmpl({
-    score: Math.round(entry.score * 100),
-    url: decodeURI(entry.url),
-    title: entry.title
-  })).join('');
+  $result.innerHTML = data.result.map(entry => {
+    let decoded = entry.url;
+    try { decoded = decodeURI(decoded); } catch (_) {}
+
+    return entryTmpl({
+      score: Math.round(entry.score * 100),
+      url: entry.url,
+      decodedUrl: decoded,
+      title: entry.title
+    });
+  }).join('');
 
   $offset.innerHTML = offsetTmpl({
     from: fromPage,

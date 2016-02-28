@@ -193,20 +193,21 @@ function pagerank(argv) {
 }
 
 function search(argv) {
-  let start = Date.now();
   let query = argv._.slice(1).join(' ');
 
   let searcher = new Searcher(argv.database, argv.verbose);
   searcher.search(query, argv.limit, argv.offset)
-          .then(handlePages)
+          .then(handleResult)
           .catch(ex => console.error(ex.stack));
 
-  function handlePages(pages) {
-    if (pages.length === 0)
-      console.log('Ooops! Where is it?');
+  function handleResult(result) {
+    let empty = true;
 
-    for (let page of pages) {
-      let [score, title, url] = [Math.round(page.score * 100), page.title, decodeURI(page.url)];
+    for (let page of result) {
+      empty = false;
+
+      let [score, title, url] = [Math.round(page.score * 100), page.title, page.url];
+      try { url = decodeURI(url); } catch (_) {}
 
       let str = `[${score}] ${title} | ${url}`;
       if (str.length > process.stdout.columns)
@@ -216,13 +217,16 @@ function search(argv) {
 
       if (argv.verbose) {
         let score = name => page.scores[name].toFixed(2);
-        console.log('     Scores: bm25: %s, cnt: %s, pos: %s, ref: %s, pr: %s\n',
-                    score('bm25'), score('cnt'), score('pos'), score('ref'), score('pr'));
+        console.log('     Scores: wbm: %s, hbm: %s, cnt: %s, pos: %s, ref: %s, pr: %s\n',
+          score('wbm'), score('hbm'), score('cnt'), score('pos'), score('ref'), score('pr'));
       }
     }
 
+    if (empty)
+      console.log('Ooops! Where is it?');
+
     console.log('-'.repeat(process.stdout.columns));
-    console.log('About %s results (%d seconds)', pages.total, (Date.now() - start) / 1000);
+    console.log('About %s results (%d seconds)', result.total, result.spent / 1000);
   }
 }
 

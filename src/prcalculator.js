@@ -79,7 +79,7 @@ export default class PRCalculator extends EventEmitter {
       delete from ${dst};
 
       insert into ${dst}
-      select ${src}.pageid, ${src}.linkcount, .15 + .85 * total(fr.pagerank / fr.linkcount)
+      select ${src}.pageid, ${src}.numlinks, .15 + .85 * total(fr.pagerank / fr.numlinks)
       from ${src} left join inboundlink on ${src}.pageid = toid
                   left join ${src} fr on fr.pageid = fromid
       group by ${src}.pageid;
@@ -98,7 +98,7 @@ export default class PRCalculator extends EventEmitter {
   updateInfo() {
     return this.db.exec(`
       delete from info;
-      insert into info select count(*), avg(wordcount) from indexed;
+      insert into info select count(*), avg(numwords), avg(numheads) from indexed;
     `);
   }
 
@@ -109,9 +109,9 @@ export default class PRCalculator extends EventEmitter {
   prTemplate(i) {
     return `
       create temp table pr${i}(
-        pageid    integer not null primary key,
-        linkcount integer not null,
-        pagerank  real    not null
+        pageid   integer not null primary key,
+        numlinks integer not null,
+        pagerank real    not null
       ) without rowid
     `;
   }

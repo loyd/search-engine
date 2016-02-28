@@ -43,16 +43,15 @@ export default class Server {
     if (!Number.isSafeInteger(offset) || offset < 0)
       offset = 0;
 
-    this.type = 'json';
-
-    let start = Date.now();
     let result = yield this.searcher.search(query, this.limit, offset);
-    let spent = Date.now() - start;
 
+    this.type = 'json';
     this.body = {
       total: result.total,
+      spent: result.spent,
       limit: this.limit,
-      offset, result, spent
+      offset,
+      result: [...result]
     };
   }
 

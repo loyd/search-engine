@@ -296,14 +296,10 @@ export default class Downloader extends EventEmitter {
     if (this.loose)
       return true;
 
-    let decoded;
-    try {
-      decoded = decodeURI(urlObj.pathname);
-    } catch (_) {
-      decoded = urlObj.pathname;
-    }
+    let decodedPath = urlObj.pathname;
+    try { decodedPath = decodeURI(decodedPath); } catch (_) {}
 
-    let match = decoded.match(reAlienUrlChar);
+    let match = decodedPath.match(reAlienUrlChar);
     if (match && match.length > 2)
       return false;
 

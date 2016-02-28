@@ -72,7 +72,7 @@ export default class Indexer {
 
     this.sql = yield {
       insertIndexed: db.prepare(`insert into indexed(pageid, title, numwords, numheads, pagerank)
-                                 values (?, ?, ?, ?, 0.)`),
+                                 values (?, ?, ?, ?, .15)`),
       insertLink: db.prepare('insert into link(fromid, toid) values (?, ?)'),
       insertLinkWord: db.prepare('insert into linkword(fromid, toid, wordid) values (?, ?, ?)'),
       insertLocation: db.prepare(`insert into

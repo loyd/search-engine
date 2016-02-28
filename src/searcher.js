@@ -18,7 +18,10 @@ export default class Searcher {
     this.guard = co.call(this, function*() {
       this.db = yield sqlite3(dbname, OPEN_READONLY);
       this.info = yield this.db.get(`
-        select indexedcount as indexedCount, avgwordcount as avgWordCount from info
+        select numindexed as numIndexed,
+               avgnumwords as avgNumWords,
+               avgnumheads as avgNumHeads
+        from info
       `);
     });
   }
@@ -26,13 +29,16 @@ export default class Searcher {
   search(query, limit=Infinity, offset=0) {
     return co.call(this, function*() {
       yield this.guard;
+      let start = Date.now();
 
       let words = yield* this.matchWords(query);
       let pages = yield* this.pickPages(words);
 
       this.rankPages(pages, words);
+
       let result = yield this.fetchInfo(pages.slice(offset, offset + limit));
       result.total = pages.length;
+      result.spent = Date.now() - start;
 
       return result;
     });
@@ -45,9 +51,11 @@ export default class Searcher {
       return [];
 
     let join = stems.map(w => `'${w}'`).join(',');
-    let words = yield this.db.all(`select rowid as wordID, pagecount as pageCount
+    let words = yield this.db.all(`select wordid as wordID,
+                                          numpages as numPages,
+                                          numheads as numHeads
                                    from word where stem in (${join})`);
-    return words.sort((a, b) => a.pageCount - b.pageCount);
+    return words.sort((a, b) => a.numPages - b.numPages);
   }
 
   *pickPages(words) {
@@ -65,7 +73,8 @@ export default class Searcher {
         sum += ' + ';
       }
 
-      select += `l${i}.frequency as frequency${i}`;
+      select += `l${i}.wordfreq as wordFreq${i}, `;
+      select += `l${i}.headfreq as headFreq${i}`;
       where += `l${i}.wordid = ${wordID}`;
       sum += `l${i}.position`;
     }
@@ -73,7 +82,8 @@ export default class Searcher {
     let fullQuery = `
       select
         idx.pageid as pageID,
-        idx.wordcount as wordCount,
+        idx.numwords as numWords,
+        idx.numheads as numHeads,
         idx.pagerank as pageRank,
         total(fromidx.pagerank) as referentPageRank,
         ${sum} as totalPosition,
@@ -93,15 +103,19 @@ export default class Searcher {
   }
 
   rankPages(pages, words) {
-    let {indexedCount, avgWordCount} = this.info;
+    let {numIndexed, avgNumWords, avgNumHeads} = this.info;
 
-    for (let word of words)
-      word.idf = Math.max(Math.log((indexedCount - word.pageCount) / word.pageCount), 0);
+    for (let word of words) {
+      word.wordIDF = Math.max(Math.log((numIndexed - word.numPages) / word.numPages), 0);
+      word.headIDF = word.numHeads &&
+        Math.max(Math.log((numIndexed - word.numHeads) / word.numHeads), 0);
+    }
 
-    let maxBM25 = 0;
-    let maxWordCount = 0;
+    let maxWordBM25 = 0;
+    let maxHeadBM25 = 0;
+    let maxNumWords = 0;
     let maxTotalPosition = 0;
-    let maxReferentPageRank = 0;
+    let maxRefPageRank = 0;
     let maxPageRank = 0;
 
     const k = 1.5;
@@ -109,29 +123,56 @@ export default class Searcher {
     const d = 1;
 
     for (let page of pages) {
-      let gain = 1 - b + b * (page.wordCount / avgWordCount);
-      page.bm25 = words.reduce((acc, w, i) =>
-        acc + w.idf * ((k+1) * page['frequency'+i] / (page['frequency'+i] + k*gain) + d), 0);
+      let gain = 1 - b + b * (page.numWords / avgNumWords);
+      page.wordBM25 = words.reduce((acc, w, i) =>
+        acc + w.wordIDF * ((k+1) * page['wordFreq'+i] / (page['wordFreq'+i] + k*gain) + d), 0);
 
-      maxBM25 = Math.max(maxBM25, page.bm25);
-      maxWordCount = Math.max(maxWordCount, page.wordCount);
+      gain = 1 - b + b * (page.numHeads / avgNumHeads);
+      page.headBM25 = words.reduce((acc, w, i) =>
+        acc + w.headIDF * ((k+1) * page['headFreq'+i] / (page['headFreq'+i] + k*gain)), 0);
+
+      maxWordBM25 = Math.max(maxWordBM25, page.wordBM25);
+      maxHeadBM25 = Math.max(maxHeadBM25, page.headBM25);
+      maxNumWords = Math.max(maxNumWords, page.numWords);
       maxTotalPosition = Math.max(maxTotalPosition, page.totalPosition);
-      maxReferentPageRank = Math.max(maxReferentPageRank, page.referentPageRank);
+      maxRefPageRank = Math.max(maxRefPageRank, page.referentPageRank);
       maxPageRank = Math.max(maxPageRank, page.pageRank);
     }
 
+    const w = {
+      wbm: 2,
+      hbm: 3,
+      cnt: 1,
+      pos: 1,
+      ref: 1.5,
+      pr: .5
+    };
+
     for (let page of pages) {
-      let bm25Score = page.bm25 / Math.max(maxBM25, 1);
-      let cntScore = page.wordCount / maxWordCount;
+      let wrdBM25Score = maxWordBM25 && page.wordBM25 / maxWordBM25;
+      let hdBM25Score = maxHeadBM25 && page.headBM25 / maxHeadBM25;
+      let cntScore = page.numWords / maxNumWords;
       let posScore = 1 - page.totalPosition / Math.max(maxTotalPosition, 1);
-      let refScore = page.referentPageRank / maxReferentPageRank;
+      let refScore = page.referentPageRank / Math.max(maxRefPageRank, .15);
       let prScore = page.pageRank / maxPageRank;
 
-      page.score = (.5 * prScore + 1.5 * refScore + posScore + cntScore + 2 * bm25Score) / 6;
+      page.score = w.wbm * wrdBM25Score
+                 + w.hbm * hdBM25Score
+                 + w.cnt * cntScore
+                 + w.pos * posScore
+                 + w.ref * refScore
+                 + w.pr  * prScore;
+
+      page.score /= (w.wbm + w.hbm + w.cnt + w.pos + w.ref + w.pr);
 
       if (this.verbose)
         page.scores = {
-          bm25: bm25Score, cnt: cntScore, pos: posScore, ref: refScore, pr: prScore
+          wbm: wrdBM25Score,
+          hbm: hdBM25Score,
+          cnt: cntScore,
+          pos: posScore,
+          ref: refScore,
+          pr: prScore
         };
     }
 
@@ -144,7 +185,7 @@ export default class Searcher {
     let map = pages.reduce(mapper, new Map);
 
     let result = yield this.db.all(`
-      select pageid, url, title from indexed join page on pageid = page.rowid
+      select pageid, url, title from indexed join page using (pageid)
       where pageid in (${pages.map(p => p.pageID).join(',')})
     `);
 
@@ -154,6 +195,6 @@ export default class Searcher {
       page.title = info.title;
     }
 
-    return [...map.values()];
+    return map.values();
   }
 }
