@@ -102,6 +102,9 @@ export default class Searcher {
   }
 
   rankPages(pages, words) {
+    if (pages.length === 0)
+      return;
+
     let {numIndexed, avgNumWords, avgNumHeads} = this.info;
 
     for (let word of words) {
@@ -110,50 +113,53 @@ export default class Searcher {
         Math.max(Math.log((numIndexed - word.numHeads) / word.numHeads), 0);
     }
 
-    let maxWordBM25 = 0;
-    let maxHeadBM25 = 0;
-    let maxNumWords = 0;
-    let minTotalPosition = Infinity;
-    let maxRefPageRank = 0;
-    let maxPageRank = 0;
+    let values = {
+      wordBM25: [],
+      headBM25: [],
+      numWords: [],
+      totalPosition: [],
+      refPageRank: [],
+      pageRank: []
+    };
 
-    const k = 1.5;
-    const b = .15;
-    const d = 1;
+    const [k, b] = [1.5, .15];
 
     for (let page of pages) {
       let gain = 1 - b + b * (page.numWords / avgNumWords);
       page.wordBM25 = words.reduce((acc, w, i) =>
-        acc + w.wordIDF * ((k+1) * page['wordFreq'+i] / (page['wordFreq'+i] + k*gain) + d), 0);
+        acc + w.wordIDF * (k+1) * page['wordFreq'+i] / (page['wordFreq'+i] + k*gain), 0);
 
       gain = 1 - b + b * (page.numHeads / avgNumHeads);
       page.headBM25 = words.reduce((acc, w, i) =>
-        acc + w.headIDF * ((k+1) * page['headFreq'+i] / (page['headFreq'+i] + k*gain)), 0);
+        acc + w.headIDF * (k+1) * page['headFreq'+i] / (page['headFreq'+i] + k*gain), 0);
 
-      maxWordBM25 = Math.max(maxWordBM25, page.wordBM25);
-      maxHeadBM25 = Math.max(maxHeadBM25, page.headBM25);
-      maxNumWords = Math.max(maxNumWords, page.numWords);
-      minTotalPosition = Math.min(minTotalPosition, page.totalPosition);
-      maxRefPageRank = Math.max(maxRefPageRank, page.referentPageRank);
-      maxPageRank = Math.max(maxPageRank, page.pageRank);
+      if (page.wordBM25 > 0)
+        values.wordBM25.push(page.wordBM25);
+
+      if (page.headBM25 > 0)
+        values.headBM25.push(page.headBM25);
+
+      values.numWords.push(page.numWords);
+      values.totalPosition.push(page.totalPosition);
+
+      if (page.referentPageRank > 0)
+        values.refPageRank.push(page.referentPageRank);
+
+      values.pageRank.push(page.pageRank);
     }
 
-    const w = {
-      wbm: 4,
-      hbm: 6,
-      cnt: 3,
-      pos: 2,
-      ref: 4,
-      pr:  2
-    };
+    for (let name in values)
+      values[name] = this.iqrRange(values[name]);
+
+    const w = {wbm: 4, hbm: 6, cnt: 3, pos: 2, ref: 4, pr: 2};
 
     for (let page of pages) {
-      let wrdBM25Score = maxWordBM25 && page.wordBM25 / maxWordBM25;
-      let hdBM25Score = maxHeadBM25 && page.headBM25 / maxHeadBM25;
-      let cntScore = page.numWords / maxNumWords;
-      let posScore = minTotalPosition / page.totalPosition;
-      let refScore = maxRefPageRank && page.referentPageRank / maxRefPageRank;
-      let prScore = page.pageRank / maxPageRank;
+      let wrdBM25Score = this.normalize(page.wordBM25, values.wordBM25);
+      let hdBM25Score = this.normalize(page.headBM25, values.headBM25);
+      let cntScore = this.normalize(page.numWords, values.numWords);
+      let posScore = this.normalize(page.totalPosition, values.totalPosition, true);
+      let refScore = this.normalize(page.referentPageRank, values.refPageRank);
+      let prScore = this.normalize(page.pageRank, values.pageRank);
 
       page.score = w.wbm * wrdBM25Score
                  + w.hbm * hdBM25Score
@@ -176,6 +182,37 @@ export default class Searcher {
     }
 
     pages.sort((a, b) => b.score - a.score);
+  }
+
+  iqrRange(values) {
+    if (values.length === 0)
+      return null;
+
+    values.sort((a, b) => a - b);
+    let {length} = values;
+
+    let q1 = values[Math.floor(length / 4)];
+    let q3 = values[Math.min(Math.ceil(length * 3 / 4), length - 1)];
+
+    let iqr = q3 - q1;
+
+    let min = Math.max(q1 - iqr * 1.5, values[0]);
+    let max = Math.min(q3 + iqr * 1.5, values[length-1]);
+    let len = max - min;
+
+    return {min, max, len};
+  }
+
+  normalize(value, range, inv=false) {
+    if (!range)
+      return 0;
+
+    if (range.len === 0)
+      return 1;
+
+    value = (value - range.min) / range.len;
+    let clamped = Math.max(0, Math.min(value, 1));
+    return inv ? 1 - clamped : clamped;
   }
 
   *fetchInfo(pages) {
