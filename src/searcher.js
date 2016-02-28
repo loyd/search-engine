@@ -113,7 +113,7 @@ export default class Searcher {
     let maxWordBM25 = 0;
     let maxHeadBM25 = 0;
     let maxNumWords = 0;
-    let maxTotalPosition = 0;
+    let minTotalPosition = Infinity;
     let maxRefPageRank = 0;
     let maxPageRank = 0;
 
@@ -133,26 +133,26 @@ export default class Searcher {
       maxWordBM25 = Math.max(maxWordBM25, page.wordBM25);
       maxHeadBM25 = Math.max(maxHeadBM25, page.headBM25);
       maxNumWords = Math.max(maxNumWords, page.numWords);
-      maxTotalPosition = Math.max(maxTotalPosition, page.totalPosition);
+      minTotalPosition = Math.min(minTotalPosition, page.totalPosition);
       maxRefPageRank = Math.max(maxRefPageRank, page.referentPageRank);
       maxPageRank = Math.max(maxPageRank, page.pageRank);
     }
 
     const w = {
-      wbm: 2,
-      hbm: 3,
-      cnt: 1,
-      pos: 1,
-      ref: 1.5,
-      pr: .5
+      wbm: 4,
+      hbm: 6,
+      cnt: 3,
+      pos: 2,
+      ref: 4,
+      pr:  2
     };
 
     for (let page of pages) {
       let wrdBM25Score = maxWordBM25 && page.wordBM25 / maxWordBM25;
       let hdBM25Score = maxHeadBM25 && page.headBM25 / maxHeadBM25;
       let cntScore = page.numWords / maxNumWords;
-      let posScore = 1 - page.totalPosition / Math.max(maxTotalPosition, 1);
-      let refScore = page.referentPageRank / Math.max(maxRefPageRank, .15);
+      let posScore = minTotalPosition / page.totalPosition;
+      let refScore = maxRefPageRank && page.referentPageRank / maxRefPageRank;
       let prScore = page.pageRank / maxPageRank;
 
       page.score = w.wbm * wrdBM25Score

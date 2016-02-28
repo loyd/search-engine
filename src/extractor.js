@@ -122,6 +122,10 @@ class InfoCollector {
     let stemIter = this.stemmer.tokenizeAndStem(text);
 
     for (let stem of stemIter) {
+      ++this.numWords;
+      if (isHeader)
+        ++this.numHeads;
+
       if (words.has(stem)) {
         let word = words.get(stem);
         ++word.numWords;
@@ -129,10 +133,6 @@ class InfoCollector {
           ++word.numHeads;
       } else
         words.set(stem, {position: this.numWords, numWords: 1, numHeads: +isHeader});
-
-      ++this.numWords;
-      if (isHeader)
-        ++this.numHeads;
     }
   }
 
