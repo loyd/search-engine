@@ -2,6 +2,7 @@
 
 import EventEmitter from 'events';
 import urllib from 'url';
+import dns from 'dns';
 
 import co from 'co';
 import request from 'request-promise';
@@ -85,14 +86,11 @@ export default class Downloader extends EventEmitter {
       if (!this.filter(urlObj))
         continue;
 
-      links.push({
-        url: `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`,
-        protocol: urlObj.protocol,
-        host: urlObj.host,
-        path: urlObj.pathname,
-        index: true,
-        penalty: 0
-      });
+      urlObj.url = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`,
+      urlObj.index = true;
+      urlObj.penalty = 0;
+
+      links.push(urlObj);
     }
 
     this.collect({links, penalty: 0, depth: 0});
@@ -121,31 +119,37 @@ export default class Downloader extends EventEmitter {
       if (this.knownUrlSet.test(lowerUrl))
         return false;
 
-      let secure = link.protocol === 'https:';
-      let domain = this.domainCache.get(link.host) || this.createDomain(link.host, secure);
-
       let page = {
-        path: link.path,
+        pathname: link.pathname,
         penalty: source.penalty + link.penalty,
         depth: source.depth + 1
       };
 
-      if (secure !== domain.secure)
-        page.secure = secure;
+      let domain = this.domainCache.get(link.host);
+      if (domain) {
+        let secure = link.protocol === 'https:';
+        if (secure !== domain.secure)
+          page.secure = secure;
+      } else
+        domain = this.createDomain(link);
 
       domain.pages.add(page);
       this.knownUrlSet.add(lowerUrl);
     }
   }
 
-  createDomain(host, secure) {
+  createDomain(link) {
     let domain = {
-      host, secure,
+      host: link.hostname,
+      secure: link.protocol === 'https:',
       pages: new PriorityQueue(Downloader.pageComparator),
       wakeUp: Date.now()
     };
 
-    this.domainCache.set(host, domain);
+    if (link.port)
+      domain.port = link.port;
+
+    this.domainCache.set(link.host, domain);
     this.domains.add(domain);
 
     return domain;
@@ -158,26 +162,37 @@ export default class Downloader extends EventEmitter {
 
   *worker() {
     let {domains} = this;
-    let domain = this.acquireDomain();
+    let domain = this.seizeDomain();
     if (!domain)
       return;
 
-    if (!domain.rules)
-      yield* this.fetchRobotstxt(domain);
+    --this.highWaterMark;
+
+    if (!domain.address) {
+      let ok = yield* this.prepareDomain(domain);
+      if (!ok) {
+        ++this.highWaterMark;
+        return;
+      }
+    }
 
     let page = this.seizePage(domain);
 
     if (page) {
       let protocol = ('secure' in page ? page.secure : domain.secure) ? 'https' : 'http';
-      let url = `${protocol}://${domain.host}${page.path}`;
+      let url = `${protocol}://${domain.address}${page.pathname}`;
       let timestamp = Date.now();
-      let response = yield* this.download(url);
-      this.emit('downloaded', url);
+      let response = yield* this.download(url, domain.host);
 
-      if (response && this.isAcceptable(response.headers)) {
-        page.url = url;
-        page.body = response.body;
-        this.process(page);
+      if (response) {
+        let url = `${protocol}://${domain.host}${page.pathname}`;
+        this.emit('downloaded', url);
+
+        if (this.isAcceptable(response.headers)) {
+          page.url = url;
+          page.body = response.body;
+          this.process(page);
+        }
       }
 
       if ('delay' in domain)
@@ -192,10 +207,11 @@ export default class Downloader extends EventEmitter {
     if (domain.pages.isEmpty())
       domain.wakeUp = Date.now() + this.relaxTime;
 
-    this.releaseDomain(domain);
+    ++this.highWaterMark;
+    this.domains.add(domain);
   }
 
-  acquireDomain() {
+  seizeDomain() {
     let domain = null;
 
     while (!(domain || this.domains.isEmpty())) {
@@ -209,15 +225,17 @@ export default class Downloader extends EventEmitter {
       }
     }
 
-    if (domain)
-      --this.highWaterMark;
-
     return domain;
   }
 
-  releaseDomain(domain) {
-    this.domains.add(domain);
-    ++this.highWaterMark;
+  *prepareDomain(domain) {
+    yield* this.fetchAddress(domain);
+
+    if (!domain.address)
+      return false;
+
+    yield* this.fetchRobotstxt(domain);
+    return true;
   }
 
   seizePage(domain) {
@@ -226,7 +244,7 @@ export default class Downloader extends EventEmitter {
     while (!(page || domain.pages.isEmpty())) {
       page = domain.pages.poll();
 
-      if (domain.rules && robotstxt.isDisallowed(domain.rules, page.path))
+      if (domain.rules && robotstxt.isDisallowed(domain.rules, page.pathname))
         page = null;
     }
 
@@ -239,9 +257,23 @@ export default class Downloader extends EventEmitter {
     this.collect(page);
   }
 
+  *fetchAddress(domain) {
+    let address = yield* this.lookup(domain.host);
+    if (!address)
+      return;
+
+    if (domain.port) {
+      domain.host += ':' + domain.port;
+      address += ':' + domain.port;
+      delete domain.port;
+    }
+
+    domain.address = address;
+  }
+
   *fetchRobotstxt(domain) {
     let protocol = domain.secure ? 'https:' : 'http:';
-    let response = yield* this.download(`${protocol}//${domain.host}/robots.txt`);
+    let response = yield* this.download(`${protocol}//${domain.address}/robots.txt`, domain.host);
 
     if (response) {
       let {rules, crawlDelay} = robotstxt.parse(response.body);
@@ -252,13 +284,18 @@ export default class Downloader extends EventEmitter {
       domain.rules = [];
   }
 
-  *download(url) {
-    let response = null;
-
+  *lookup(hostname) {
     try {
-      response = yield request({
+      return yield cb => dns.lookup(hostname, (err, addr, _) => cb(err, addr));
+    } catch (_) {}
+  }
+
+  *download(url, host) {
+    try {
+      return yield request({
         url,
         headers: {
+          'Host': host,
           'accept': "application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8",
           'accept-language': 'ru, en;q=0.8',
           'accept-charset': 'utf-8',
@@ -266,20 +303,15 @@ export default class Downloader extends EventEmitter {
                         'AppleWebKit/534.7 (KHTML, like Gecko) Chrome/7.0.517.41 Safari/534.7',
         },
         gzip: true,
+        strictSSL: false,
         resolveWithFullResponse: true,
         timeout: this.timeout,
         time: true
       }).setMaxListeners(64 /* Shut up! */);
     } catch (ex) {
-      if (~url.indexOf('wikipedia') && url.endsWith('robots.txt')) {
-        console.error(ex);
-        process.exit(0);
-      }
       if (!(ex instanceof RequestError || ex instanceof StatusCodeError))
         throw ex;
     }
-
-    return response;
   }
 
   isAcceptable(headers) {

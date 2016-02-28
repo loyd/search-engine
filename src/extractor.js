@@ -157,16 +157,13 @@ class InfoCollector {
       link.index = false;
 
     let stored = this.links.get(lowerUrl);
-    if (!stored)
-      this.links.set(lowerUrl, stored = {
-        url,
-        protocol: urlObj.protocol,
-        host: urlObj.host,
-        path: urlObj.pathname,
-        index: link.index,
-        penalty: 0
-      });
-    else if (link.index)
+    if (!stored) {
+      stored = urlObj;
+      stored.url = url;
+      stored.index = link.index;
+      stored.penalty = 0;
+      this.links.set(lowerUrl, stored);
+    } else if (link.index)
       stored.index = true;
 
     // Collect unique stems from the text.
@@ -243,7 +240,7 @@ export default class Extractor {
     this.handler.getEvents(this.collector);
 
     page.title = title;
-    page.links = this.calculatePenalty(this.collector.links);
+    page.links = [...this.calculatePenalty(this.collector.links)];
     page.words = this.collector.words;
     page.numWords = this.collector.numWords;
     page.numHeads = this.collector.numHeads;
