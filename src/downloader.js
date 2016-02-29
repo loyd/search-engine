@@ -7,7 +7,7 @@ import dns from 'dns';
 import co from 'co';
 import request from 'request-promise';
 import {RequestError, StatusCodeError} from 'request-promise/errors';
-import PriorityQueue from 'fastpriorityqueue';
+import PriorityQueue from 'priorityqueuejs';
 import {BloomFilter} from 'bloomfilter';
 
 import * as robotstxt from './robotstxt';
@@ -17,11 +17,11 @@ const reAlienUrlChar = /[^\x00-\xFFа-яА-ЯёЁ]/g;
 
 export default class Downloader extends EventEmitter {
   static domainComparator(a, b) {
-    return a.wakeUp < b.wakeUp;
+    return b.wakeUp - a.wakeUp;
   }
 
   static pageComparator(a, b) {
-    return a.depth === b.depth ? a.penalty < b.penalty : a.depth < b.depth;
+    return a.depth === b.depth ? b.penalty - a.penalty : b.depth - a.depth;
   }
 
   static calcBloomParams(count, prob) {
@@ -133,7 +133,7 @@ export default class Downloader extends EventEmitter {
       } else
         domain = this.createDomain(link);
 
-      domain.pages.add(page);
+      domain.pages.enq(page);
       this.knownUrlSet.add(lowerUrl);
     }
   }
@@ -150,7 +150,7 @@ export default class Downloader extends EventEmitter {
       domain.port = link.port;
 
     this.domainCache.set(link.host, domain);
-    this.domains.add(domain);
+    this.domains.enq(domain);
 
     return domain;
   }
@@ -208,14 +208,14 @@ export default class Downloader extends EventEmitter {
       domain.wakeUp = Date.now() + this.relaxTime;
 
     ++this.highWaterMark;
-    this.domains.add(domain);
+    this.domains.enq(domain);
   }
 
   seizeDomain() {
     let domain = null;
 
     while (!(domain || this.domains.isEmpty())) {
-      domain = this.domains.poll();
+      domain = this.domains.deq();
 
       if (domain.pages.isEmpty()) {
         // Time is up.
@@ -242,7 +242,7 @@ export default class Downloader extends EventEmitter {
     let page = null;
 
     while (!(page || domain.pages.isEmpty())) {
-      page = domain.pages.poll();
+      page = domain.pages.deq();
 
       if (domain.rules && robotstxt.isDisallowed(domain.rules, page.pathname))
         page = null;

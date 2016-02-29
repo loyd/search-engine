@@ -26,7 +26,7 @@ export default class Crawler extends EventEmitter {
 
     this.downloader.on('downloaded', url => {
       ++this.downloaded;
-      this.emit('downloaded', this.decodeURI(url), this.downloader.domains.size);
+      this.emit('downloaded', this.decodeURI(url), this.downloader.domains.size());
     });
 
     this.downloader.on('error', ex => this.emit('error', ex));
@@ -44,7 +44,7 @@ export default class Crawler extends EventEmitter {
       let page = yield* this.downloader.dequeue();
       yield* this.indexer.index(page);
       ++this.indexed;
-      this.emit('indexed', this.decodeURI(page.url), this.downloader.domains.size);
+      this.emit('indexed', this.decodeURI(page.url), this.downloader.domains.size());
     }
   }
 
