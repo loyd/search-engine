@@ -9,21 +9,11 @@ let argv = yargs
     yargs
     .usage('Usage: $0 crawl [options] <urls...>')
     .demand(2)
-    .option('i', {
-      alias: 'ignore-nofollow',
-      describe: 'ignore rel="nofollow"',
-      boolean: true
-    })
     .options('m', {
       alias: 'max-depth',
       describe: 'how far the crawler can go',
       number: true,
-      default: 3
-    })
-    .options('l', {
-      alias: 'loose',
-      describe: 'alleviate link filtering',
-      boolean: true
+      default: 4
     })
     .option('t', {
       alias: 'timeout',
@@ -31,11 +21,27 @@ let argv = yargs
       number: true,
       default: 15
     })
+    .option('s', {
+      alias: 'max-size',
+      describe: 'max file size to process',
+      number: true,
+      default: 16
+    })
     .option('r', {
       alias: 'relax-time',
       describe: 'how long to hold an empty domain',
       number: true,
       default: 10
+    })
+    .options('l', {
+      alias: 'loose-filter',
+      describe: 'alleviate link filtering',
+      boolean: true
+    })
+    .option('i', {
+      alias: 'ignore-nofollow',
+      describe: 'ignore rel="nofollow"',
+      boolean: true
     })
     .options('s', {
       alias: 'link-stem-limit',
@@ -127,11 +133,12 @@ function crawl(argv) {
   let crawler = new Crawler({
     dbname: argv.database,
     urls: argv._.slice(1),
-    ignoreNofollow: argv.ignoreNofollow,
     maxDepth: argv.maxDepth,
-    loose: argv.loose,
-    relaxTime: argv.relaxTime,
     timeout: argv.timeout,
+    maxSize: argv.maxSize,
+    looseFilter: argv.looseFilter,
+    relaxTime: argv.relaxTime,
+    ignoreNofollow: argv.ignoreNofollow,
     linkStemLimit: argv.linkStemLimit
   });
 

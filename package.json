@@ -9,7 +9,7 @@
     "natural": "^0.2.1",
     "priorityqueuejs": "^1.0.0",
     "readabilitySAX": "^1.6.1",
-    "request-promise": "^2.0.0",
+    "request": "^2.69.0",
     "yargs": "^4.1.0"
   },
 

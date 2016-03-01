@@ -19,7 +19,8 @@ export default class Crawler extends EventEmitter {
     this.indexer = new Indexer;
 
     this.downloader = new Downloader(page => this.extractor.extract(page),
-                                     opts.maxDepth, opts.loose, opts.relaxTime, opts.timeout);
+                                     opts.maxDepth, opts.timeout, opts.maxSize,
+                                     opts.looseFilter, opts.relaxTime);
 
     this.extractor = new Extractor(urlObj => this.downloader.filter(urlObj),
                                    opts.ignoreNofollow, opts.linkStemLimit);

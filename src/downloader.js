@@ -5,8 +5,7 @@ import urllib from 'url';
 import dns from 'dns';
 
 import co from 'co';
-import request from 'request-promise';
-import {RequestError, StatusCodeError} from 'request-promise/errors';
+import request from 'request';
 import PriorityQueue from 'priorityqueuejs';
 import {BloomFilter} from 'bloomfilter';
 
@@ -30,13 +29,15 @@ export default class Downloader extends EventEmitter {
     return [m, k];
   }
 
-  constructor(extract, maxDepth=3, loose=false, relaxTime=10, timeout=15, highWaterMark=64) {
+  constructor(extract, maxDepth=4, timeout=15, maxSize=16, looseFilter=false,
+                       relaxTime=10, highWaterMark=64) {
     super();
 
     this.maxDepth = maxDepth;
-    this.loose = loose;
-    this.relaxTime = relaxTime * 60 * 1000;
     this.timeout = timeout * 1000;
+    this.maxSize = maxSize * 1024 * 1024;
+    this.looseFilter = looseFilter;
+    this.relaxTime = relaxTime * 60 * 1000;
     this.highWaterMark = highWaterMark;
 
     this.extract = extract;
@@ -291,27 +292,43 @@ export default class Downloader extends EventEmitter {
   }
 
   *download(url, host) {
-    try {
-      return yield request({
-        url,
-        headers: {
-          'Host': host,
-          'accept': "application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8",
-          'accept-language': 'ru, en;q=0.8',
-          'accept-charset': 'utf-8',
-          'user-agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_4; en-US) ' +
-                        'AppleWebKit/534.7 (KHTML, like Gecko) Chrome/7.0.517.41 Safari/534.7',
-        },
-        gzip: true,
-        strictSSL: false,
-        resolveWithFullResponse: true,
-        timeout: this.timeout,
-        time: true
-      }).setMaxListeners(64 /* Shut up! */);
-    } catch (ex) {
-      if (!(ex instanceof RequestError || ex instanceof StatusCodeError))
-        throw ex;
-    }
+    let opts = {
+      url,
+      headers: {
+        'host': host,
+        'accept': "application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8",
+        'accept-language': 'ru, en;q=0.8',
+        'accept-charset': 'utf-8',
+        'user-agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_4; en-US) ' +
+                      'AppleWebKit/534.7 (KHTML, like Gecko) Chrome/7.0.517.41 Safari/534.7',
+      },
+      gzip: true,
+      strictSSL: false,
+      timeout: this.timeout,
+      time: true
+    };
+
+    let received = 0;
+
+    return yield new Promise(resolve => {
+      let req = request(opts, (err, response) => {
+        if (err)
+          return resolve(null);
+
+        if (200 <= response.statusCode && response.statusCode < 300)
+          return resolve(response);
+
+        return resolve(null);
+      })
+      .setMaxListeners(64 /* Shut up! */)
+      .on('data', chunk => {
+        received += chunk.length;
+        if (received > this.maxSize) {
+          req.abort();
+          resolve(null);
+        }
+      });
+    });
   }
 
   isAcceptable(headers) {
@@ -325,7 +342,7 @@ export default class Downloader extends EventEmitter {
     if (!(urlObj.protocol === 'http:' || urlObj.protocol === 'https:'))
       return false;
 
-    if (this.loose)
+    if (this.looseFilter)
       return true;
 
     let decodedPath = urlObj.pathname;
