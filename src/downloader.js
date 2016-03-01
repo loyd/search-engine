@@ -322,7 +322,7 @@ export default class Downloader extends EventEmitter {
   }
 
   guessRelevant(urlObj) {
-    if (!urlObj.protocol.startsWith('http'))
+    if (!(urlObj.protocol === 'http:' || urlObj.protocol === 'https:'))
       return false;
 
     if (this.loose)
