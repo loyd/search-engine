@@ -33,9 +33,9 @@ let argv = yargs
       number: true,
       default: 10
     })
-    .options('l', {
-      alias: 'loose-filter',
-      describe: 'alleviate link filtering',
+    .options('g', {
+      alias: 'no-guessing',
+      describe: 'don\'t guess link relevant by url',
       boolean: true
     })
     .option('i', {
@@ -43,7 +43,7 @@ let argv = yargs
       describe: 'ignore rel="nofollow"',
       boolean: true
     })
-    .options('s', {
+    .options('l', {
       alias: 'link-stem-limit',
       describe: 'limit stems per link',
       number: true,
@@ -136,7 +136,7 @@ function crawl(argv) {
     maxDepth: argv.maxDepth,
     timeout: argv.timeout,
     maxSize: argv.maxSize,
-    looseFilter: argv.looseFilter,
+    noGuessing: argv.noGuessing,
     relaxTime: argv.relaxTime,
     ignoreNofollow: argv.ignoreNofollow,
     linkStemLimit: argv.linkStemLimit

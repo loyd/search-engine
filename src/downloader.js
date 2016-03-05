@@ -30,14 +30,14 @@ export default class Downloader extends EventEmitter {
     return [m, k];
   }
 
-  constructor(extract, maxDepth=4, timeout=15, maxSize=16, looseFilter=false,
+  constructor(extract, maxDepth=4, timeout=15, maxSize=16, noGuessing=false,
                        relaxTime=10, highWaterMark=64) {
     super();
 
     this.maxDepth = maxDepth;
     this.timeout = timeout * 1000;
     this.maxSize = maxSize * 1024 * 1024;
-    this.looseFilter = looseFilter;
+    this.guessing = !noGuessing;
     this.relaxTime = relaxTime * 60 * 1000;
     this.highWaterMark = highWaterMark;
 
@@ -100,7 +100,7 @@ export default class Downloader extends EventEmitter {
   }
 
   filter(urlObj) {
-    if (!this.guessRelevant(urlObj))
+    if (this.guessing && !this.guessRelevant(urlObj))
       return false;
 
     if (this.domainCache.has(urlObj.host)) {
@@ -339,9 +339,6 @@ export default class Downloader extends EventEmitter {
   }
 
   guessRelevant(urlObj) {
-    if (this.looseFilter)
-      return true;
-
     let decodedPath = urlObj.pathname;
     try { decodedPath = decodeURI(decodedPath); } catch (_) {}
 
