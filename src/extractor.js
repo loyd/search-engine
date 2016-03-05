@@ -1,13 +1,13 @@
 "use strict";
 
 import urllib from 'url';
-import punycode from 'punycode';
 
 import {Parser} from 'htmlparser2';
 import {Readability} from 'readabilitySAX';
 import entities from 'entities';
 
 import Stemmer from './stemmer';
+import * as utils from './utils';
 
 
 class Handler extends Readability {
@@ -48,8 +48,6 @@ class Handler extends Readability {
     return name && attribs[name];
   }
 }
-
-const reDupSlashes = /\/{2,}/g;
 
 class InfoCollector {
   constructor(urlFilter, ignoreNofollow, linkStemLimit) {
@@ -112,7 +110,7 @@ class InfoCollector {
     this.link = null;
     this.links = new Map;
     this.pageUrl = pageUrl;
-    this.pageLowerUrl = pageUrl.toLowerCase();
+    this.pageKey = utils.urlToKey(pageUrl);
 
     for (let link of links)
       this.prepareLink(link);
@@ -139,14 +137,17 @@ class InfoCollector {
   }
 
   prepareLink(link) {
-    let resolved = urllib.resolve(this.pageUrl, this.normalizeUrl(link.href));
-    let urlObj = urllib.parse(resolved);
+    let resolved = urllib.resolve(this.pageUrl, link.href);
+    let normalized = utils.normalizeUrl(resolved);
+    let urlObj = urllib.parse(normalized);
 
-    let url = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
-    let lowerUrl = url.toLowerCase();
+    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:')
+      return;
+
+    let key = utils.urlObjToKey(urlObj);
 
     // It's an anchor. Throw out.
-    if (lowerUrl === this.pageLowerUrl)
+    if (key === this.pageKey)
       return;
 
     if (!this.urlFilter(urlObj))
@@ -156,13 +157,13 @@ class InfoCollector {
     if (urlObj.query)
       link.index = false;
 
-    let stored = this.links.get(lowerUrl);
+    let stored = this.links.get(key);
     if (!stored) {
       stored = urlObj;
-      stored.url = url;
+      stored.key = key;
       stored.index = link.index;
       stored.penalty = 0;
-      this.links.set(lowerUrl, stored);
+      this.links.set(key, stored);
     } else if (link.index)
       stored.index = true;
 
@@ -178,50 +179,6 @@ class InfoCollector {
             break;
         }
     }
-  }
-
-  normalizeUrl(url) {
-    url = url.trim();
-
-    let shorthand = url.startsWith('//');
-    let urlObj = urllib.parse(shorthand ? `http:${url}` : url);
-
-    delete urlObj.host;
-    delete urlObj.query;
-    delete urlObj.hash;
-
-    // Remove default port.
-    if (urlObj.port) {
-      if (urlObj.protocol === 'http:' && +urlObj.port === 80)
-        delete urlObj.port;
-      else if (urlObj.protocol === 'https:' && +urlObj.port === 443)
-        delete urlObj.port;
-    }
-
-    // Replace duplicate slashes.
-    if (urlObj.pathname)
-      urlObj.pathname = urlObj.pathname.replace(reDupSlashes, '/');
-
-    // IDN to unicode and remove "www.".
-    if (urlObj.hostname) {
-      let hostname = punycode.toUnicode(urlObj.hostname);
-      if (hostname.startsWith('www.'))
-        hostname = hostname.slice(4);
-
-      urlObj.hostname = hostname;
-    }
-
-    url = urllib.format(urlObj);
-
-    // Remove ending "/".
-    if (url.endsWith('/'))
-      url = url.slice(0, -1);
-
-    // Restore relative protocol.
-    if (shorthand)
-      url = url.slice(5);
-
-    return url;
   }
 }
 

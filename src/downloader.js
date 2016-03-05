@@ -10,6 +10,7 @@ import PriorityQueue from 'priorityqueuejs';
 import {BloomFilter} from 'bloomfilter';
 
 import * as robotstxt from './robotstxt';
+import * as utils from './utils';
 
 
 const reAlienUrlChar = /[^\x00-\xFFа-яА-ЯёЁ]/g;
@@ -75,19 +76,20 @@ export default class Downloader extends EventEmitter {
   }
 
   markAsKnown(url) {
-    this.knownUrlSet.add(url.toLowerCase());
+    this.knownUrlSet.add(utils.urlToKey(url));
   }
 
   seed(urls) {
     let links = [];
 
     for (let url of urls) {
-      let urlObj = urllib.parse(url);
+      let normalized = utils.normalizeUrl(url);
+      let urlObj = urllib.parse(normalized);
 
       if (!this.filter(urlObj))
         continue;
 
-      urlObj.url = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`,
+      urlObj.key = utils.urlObjToKey(urlObj);
       urlObj.index = true;
       urlObj.penalty = 0;
 
@@ -115,9 +117,7 @@ export default class Downloader extends EventEmitter {
       return;
 
     for (let link of source.links) {
-      let lowerUrl = link.url.toLowerCase();
-
-      if (this.knownUrlSet.test(lowerUrl))
+      if (this.knownUrlSet.test(link.key))
         return false;
 
       let page = {
@@ -135,7 +135,7 @@ export default class Downloader extends EventEmitter {
         domain = this.createDomain(link);
 
       domain.pages.enq(page);
-      this.knownUrlSet.add(lowerUrl);
+      this.knownUrlSet.add(link.key);
     }
   }
 
@@ -339,9 +339,6 @@ export default class Downloader extends EventEmitter {
   }
 
   guessRelevant(urlObj) {
-    if (!(urlObj.protocol === 'http:' || urlObj.protocol === 'https:'))
-      return false;
-
     if (this.looseFilter)
       return true;
 

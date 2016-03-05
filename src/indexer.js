@@ -152,7 +152,8 @@ export default class Indexer {
     let guards = [];
 
     for (let link of page.links) if (link.index) {
-      let pageID = yield* this.takePageID(link.url);
+      let url = `${link.protocol}//${link.host}${link.pathname}`;
+      let pageID = yield* this.takePageID(url);
       guards.push(sql.insertLink.run(page.id, pageID));
 
       if (link.stems) {
