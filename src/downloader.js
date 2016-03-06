@@ -182,17 +182,13 @@ export default class Downloader extends EventEmitter {
       let protocol = ('secure' in page ? page.secure : domain.secure) ? 'https' : 'http';
       let url = `${protocol}://${domain.address}${page.pathname}`;
       let timestamp = Date.now();
-      let response = yield* this.download(url, domain.host);
+      let response = yield* this.download(url, domain.host, headers => this.isAcceptable(headers));
+      this.emit('downloaded', url);
 
       if (response) {
-        let url = `${protocol}://${domain.host}${page.pathname}`;
-        this.emit('downloaded', url);
-
-        if (this.isAcceptable(response.headers)) {
-          page.url = url;
-          page.body = response.body;
-          this.process(page);
-        }
+        page.url = `${protocol}://${domain.host}${page.pathname}`;
+        page.body = response.body;
+        this.process(page);
       }
 
       if ('delay' in domain)
@@ -219,8 +215,7 @@ export default class Downloader extends EventEmitter {
 
       if (domain.pages.isEmpty()) {
         // Time is up.
-        let ok = this.domainCache.delete(domain.host);
-        console.assert(ok);
+        this.domainCache.delete(domain.host);
         domain = null;
       }
     }
@@ -290,7 +285,7 @@ export default class Downloader extends EventEmitter {
     } catch (_) {}
   }
 
-  *download(url, host) {
+  *download(url, host, filter) {
     let opts = {
       url,
       headers: {
@@ -310,17 +305,22 @@ export default class Downloader extends EventEmitter {
     let received = 0;
 
     return yield new Promise(resolve => {
-      let req = request(opts, (err, response) => {
-        if (err)
-          return resolve(null);
+      let req = request(opts, (err, response) => resolve(err ? null : response));
+      req.setMaxListeners(64 /* Shut up! */);
 
-        if (200 <= response.statusCode && response.statusCode < 300)
-          return resolve(response);
+      req.on('response', response => {
+        if (200 <= response.statusCode && response.statusCode < 300) {
+          let contentLength = parseInt(response.headers['content-length']) || 0;
+          if (contentLength <= this.maxSize)
+            if (!filter || filter(response.headers))
+              return;
+        }
 
-        return resolve(null);
-      })
-      .setMaxListeners(64 /* Shut up! */)
-      .on('data', chunk => {
+        req.abort();
+        resolve(null);
+      });
+
+      req.on('data', chunk => {
         received += chunk.length;
         if (received > this.maxSize) {
           req.abort();
