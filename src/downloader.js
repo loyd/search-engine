@@ -13,8 +13,6 @@ import * as robotstxt from './robotstxt';
 import * as utils from './utils';
 
 
-const reAlienUrlChar = /[^\x00-\xFFа-яА-ЯёЁ]/g;
-
 export default class Downloader extends EventEmitter {
   static domainComparator(a, b) {
     return b.wakeUp - a.wakeUp;
@@ -76,20 +74,21 @@ export default class Downloader extends EventEmitter {
   }
 
   markAsKnown(url) {
-    this.knownUrlSet.add(utils.urlToKey(url));
+    let key = utils.normalizeUrl(url);
+    this.knownUrlSet.add(key);
   }
 
   seed(urls) {
     let links = [];
 
     for (let url of urls) {
-      let normalized = utils.normalizeUrl(url);
-      let urlObj = urllib.parse(normalized);
+      let resolved = urllib.resolve('http://example.com', url);
+      let urlObj = urllib.parse(resolved);
 
-      if (!this.filter(urlObj))
+      if (!/^https?:$/.test(urlObj.protocol) || !this.filter(urlObj))
         continue;
 
-      urlObj.key = utils.urlObjToKey(urlObj);
+      urlObj.key = utils.normalizeUrlObj(urlObj);
       urlObj.index = true;
       urlObj.penalty = 0;
 
@@ -342,7 +341,7 @@ export default class Downloader extends EventEmitter {
     let decodedPath = urlObj.pathname;
     try { decodedPath = decodeURI(decodedPath); } catch (_) {}
 
-    let match = decodedPath.match(reAlienUrlChar);
+    let match = decodedPath.match(/[^\x00-\xFFа-яА-ЯёЁ]/g);
     if (match && match.length > 2)
       return false;
 

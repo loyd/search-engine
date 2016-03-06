@@ -4,54 +4,38 @@ import urllib from 'url';
 import punycode from 'punycode';
 
 
-export function normalizeUrl(url) {
-  url = url.trim();
+export function normalizeUrlObj(urlObj) {
+  let [hostname, port, pathname] = ['', '', ''];
 
-  let shorthand = url.startsWith('//');
-  let urlObj = urllib.parse(shorthand ? `http:${url}` : url);
-
-  delete urlObj.host;
-  delete urlObj.query;
-  delete urlObj.hash;
-
-  // Remove default port.
-  if (urlObj.port) {
-    if (urlObj.protocol === 'http:' && +urlObj.port === 80)
-      delete urlObj.port;
-    else if (urlObj.protocol === 'https:' && +urlObj.port === 443)
-      delete urlObj.port;
-  }
-
-  // Replace duplicate slashes.
-  if (urlObj.pathname)
-    urlObj.pathname = urlObj.pathname.replace(/\/{2,}/g, '/');
-
-  // IDN to unicode and remove "www.".
   if (urlObj.hostname) {
-    let hostname = punycode.toUnicode(urlObj.hostname);
-    if (hostname.startsWith('www.'))
-      hostname = hostname.slice(4);
-
-    urlObj.hostname = hostname;
+    hostname = punycode
+      // IDN to unicode.
+      .toUnicode(urlObj.hostname)
+      // Remove `www.`.
+      .replace(/^www./, '');
   }
 
-  url = urllib.format(urlObj);
+  if (urlObj.port) {
+    // Remove default port.
+    if (!(urlObj.protocol === 'http:'  && +urlObj.port === 80 ||
+          urlObj.protocol === 'https:' && +urlObj.port === 443))
+      port = ':' + urlObj.port;
+  }
 
-  // Remove ending "/".
-  if (url.endsWith('/'))
-    url = url.slice(0, -1);
+  if (urlObj.pathname) {
+    pathname = urlObj.pathname
+      .toLowerCase()
+      // Replace duplicate slashes.
+      .replace(/\/{2,}/g, '/')
+      // Remove ending "/".
+      .replace(/\/$/, '')
+      // Remove default index file.
+      .replace(/\/(?:default.(?:html?|aspx?)|index.(?:s?html?|php|jsp|asp))$/, '');
+  }
 
-  // Restore relative protocol.
-  if (shorthand)
-    url = url.slice(5);
-
-  return url;
+  return hostname + port + pathname;
 }
 
-export function urlObjToKey(urlObj) {
-  return urlObj.host + urlObj.pathname.toLowerCase();
-}
-
-export function urlToKey(url) {
-  return urlObjToKey(urllib.parse(url));
+export function normalizeUrl(url) {
+  return normalizeUrlObj(urllib.parse(url));
 }

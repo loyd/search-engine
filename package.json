@@ -21,6 +21,7 @@
 
   "scripts": {
     "build": "babel src -d build && BABEL_ENV=browser babel web -Dd build/public",
+    "test": "babel-node test/index.js",
     "clean": "rm -rf build"
   }
 }

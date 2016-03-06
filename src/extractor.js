@@ -110,7 +110,7 @@ class InfoCollector {
     this.link = null;
     this.links = new Map;
     this.pageUrl = pageUrl;
-    this.pageKey = utils.urlToKey(pageUrl);
+    this.pageKey = utils.normalizeUrl(pageUrl);
 
     for (let link of links)
       this.prepareLink(link);
@@ -138,13 +138,12 @@ class InfoCollector {
 
   prepareLink(link) {
     let resolved = urllib.resolve(this.pageUrl, link.href);
-    let normalized = utils.normalizeUrl(resolved);
-    let urlObj = urllib.parse(normalized);
+    let urlObj = urllib.parse(resolved);
 
-    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:')
+    if (!/^https?:$/.test(urlObj.protocol))
       return;
 
-    let key = utils.urlObjToKey(urlObj);
+    let key = utils.normalizeUrlObj(urlObj);
 
     // It's an anchor. Throw out.
     if (key === this.pageKey)
@@ -205,7 +204,7 @@ export default class Extractor {
 
   *calculatePenalty(links) {
     for (let link of links.values()) {
-      if (!link.indexed)
+      if (!link.index)
         link.penalty += 8;
 
       if (!link.stems)
