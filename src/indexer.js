@@ -13,26 +13,26 @@ const tables = [
   )`,
 
   `word(
-    wordid   integer not null primary key,
-    stem     text    not null unique,
-    numpages integer not null,
-    numheads integer not null
+    wordid    integer not null primary key,
+    stem      text    not null unique,
+    pagecount integer not null,
+    headcount integer not null
   )`,
 
   `indexed(
-    pageid   integer not null primary key references page(pageid),
-    title    text    not null,
-    numwords integer not null,
-    numheads integer not null,
-    pagerank real    not null
+    pageid    integer not null primary key references page(pageid),
+    title     text    not null,
+    wordcount integer not null,
+    headcount integer not null,
+    pagerank  real    not null
   ) without rowid`,
 
   `location(
-    wordid   integer not null references word(wordid),
-    pageid   integer not null references page(pageid),
-    position integer not null,
-    wordfreq real    not null,
-    headfreq real    not null,
+    wordid    integer not null references word(wordid),
+    pageid    integer not null references page(pageid),
+    position  integer not null,
+    wordcount integer not null,
+    headcount integer not null,
     primary key(wordid, pageid)
   ) without rowid`,
 
@@ -48,9 +48,9 @@ const tables = [
   )`,
 
   `info(
-    numindexed  integer not null,
-    avgnumwords real    not null,
-    avgnumheads real    not null
+    indexedcount integer not null,
+    avgwordcount real    not null,
+    avgheadcount real    not null
   )`
 ];
 
@@ -71,20 +71,20 @@ export default class Indexer {
     yield indices.map(idx => db.run(`create index if not exists ${idx}`));
 
     this.sql = yield {
-      insertIndexed: db.prepare(`insert into indexed(pageid, title, numwords, numheads, pagerank)
+      insertIndexed: db.prepare(`insert into indexed(pageid, title, wordcount, headcount, pagerank)
                                  values (?, ?, ?, ?, .15)`),
       insertLink: db.prepare('insert into link(fromid, toid) values (?, ?)'),
       insertLinkWord: db.prepare('insert into linkword(fromid, toid, wordid) values (?, ?, ?)'),
       insertLocation: db.prepare(`insert into
-                                  location(wordid, pageid, position, wordfreq, headfreq)
+                                  location(wordid, pageid, position, wordcount, headcount)
                                   values (?, ?, ?, ?, ?)`),
       insertPage: db.prepare('insert into page(url) values (?)'),
-      insertWord: db.prepare('insert into word(stem, numpages, numheads) values (?, 0, 0)'),
+      insertWord: db.prepare('insert into word(stem, pagecount, headcount) values (?, 0, 0)'),
       selectPage: db.prepare('select pageid from page where url = ?'),
       selectWord: db.prepare('select wordid from word where stem = ?'),
-      updateWord: db.prepare('update word set numpages = numpages + 1 where wordid = ?'),
-      updateHeadWord: db.prepare(`update word set numpages = numpages + 1,
-                                                  numheads = numheads + 1 where wordid = ?`)
+      updateWord: db.prepare('update word set pagecount = pagecount + 1 where wordid = ?'),
+      updateHeadWord: db.prepare(`update word set pagecount = pagecount + 1,
+                                                  headcount = headcount + 1 where wordid = ?`)
     };
 
     return new Indexer(db);
@@ -102,7 +102,7 @@ export default class Indexer {
 
     try {
       page.id = yield* this.takePageID(page.url);
-      yield this.sql.insertIndexed.run(page.id, page.title, page.numWords, page.numHeads);
+      yield this.sql.insertIndexed.run(page.id, page.title, page.wordCount, page.headCount);
     } catch (ex) {
       yield db.run('rollback');
 
@@ -130,18 +130,10 @@ export default class Indexer {
     let {sql} = this;
     let guards = [];
 
-    for (let [stem, word] of page.words) {
+    for (let [stem, w] of page.words) {
       let wordID = yield* this.takeWordID(stem);
-      let wordFreq = word.numWords / page.numWords;
-
-      if (word.numHeads) {
-        let headFreq = word.numHeads / page.numHeads;
-        guards.push(sql.updateHeadWord.run(wordID));
-        guards.push(sql.insertLocation.run(wordID, page.id, word.position, wordFreq, headFreq));
-      } else {
-        guards.push(sql.updateWord.run(wordID));
-        guards.push(sql.insertLocation.run(wordID, page.id, word.position, wordFreq, 0));
-      }
+      guards.push((w.headCount ? sql.updateHeadWord : sql.updateWord).run(wordID));
+      guards.push(sql.insertLocation.run(wordID, page.id, w.position, w.wordCount, w.headCount));
     }
 
     yield guards;

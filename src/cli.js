@@ -231,7 +231,7 @@ function search(argv) {
 
       if (argv.verbose > 1) {
         console.log('     words: %d   heads: %d   total pos: %d   PR: %s   ref PR: %s',
-          page.numWords, page.numHeads, page.totalPosition,
+          page.wordCount, page.headCount, page.totalPosition,
           page.pageRank.toFixed(2), page.referentPageRank.toFixed(2));
       }
 

@@ -103,8 +103,8 @@ class InfoCollector {
     this.headerNesting = 0;
 
     this.words = new Map;
-    this.numWords = 0;
-    this.numHeads = 0;
+    this.wordCount = 0;
+    this.headCount = 0;
     this.prepareText(title, true);
 
     this.link = null;
@@ -122,17 +122,17 @@ class InfoCollector {
     let stemIter = this.stemmer.tokenizeAndStem(decoded);
 
     for (let stem of stemIter) {
-      ++this.numWords;
+      ++this.wordCount;
       if (isHeader)
-        ++this.numHeads;
+        ++this.headCount;
 
       if (words.has(stem)) {
         let word = words.get(stem);
-        ++word.numWords;
+        ++word.wordCount;
         if (isHeader)
-          ++word.numHeads;
+          ++word.headCount;
       } else
-        words.set(stem, {position: this.numWords, numWords: 1, numHeads: +isHeader});
+        words.set(stem, {position: this.wordCount, wordCount: 1, headCount: +isHeader});
     }
   }
 
@@ -198,8 +198,8 @@ export default class Extractor {
     page.title = title;
     page.links = [...this.calculatePenalty(this.collector.links)];
     page.words = this.collector.words;
-    page.numWords = this.collector.numWords;
-    page.numHeads = this.collector.numHeads;
+    page.wordCount = this.collector.wordCount;
+    page.headCount = this.collector.headCount;
   }
 
   *calculatePenalty(links) {

@@ -18,9 +18,9 @@ export default class Searcher {
     this.guard = co.call(this, function*() {
       this.db = yield sqlite3(dbname, OPEN_READONLY);
       this.info = yield this.db.get(`
-        select numindexed as numIndexed,
-               avgnumwords as avgNumWords,
-               avgnumheads as avgNumHeads
+        select indexedcount as indexedCount,
+               avgwordcount as avgWordCount,
+               avgheadcount as avgHeadCount
         from info
       `);
     });
@@ -52,10 +52,10 @@ export default class Searcher {
 
     let join = stems.map(w => `'${w}'`).join(',');
     let words = yield this.db.all(`select wordid as wordID,
-                                          numpages as numPages,
-                                          numheads as numHeads
+                                          pagecount as pageCount,
+                                          headcount as headCount
                                    from word where stem in (${join})`);
-    return words.sort((a, b) => a.numPages - b.numPages);
+    return words.sort((a, b) => a.pageCount - b.pageCount);
   }
 
   *pickPages(words) {
@@ -73,8 +73,8 @@ export default class Searcher {
         sum += ' + ';
       }
 
-      select += `l${i}.wordfreq as wordFreq${i}, `;
-      select += `l${i}.headfreq as headFreq${i}`;
+      select += `l${i}.wordcount as word${i}Count, `;
+      select += `l${i}.headcount as head${i}Count`;
       where += `l${i}.wordid = ${wordID}`;
       sum += `l${i}.position`;
     }
@@ -82,8 +82,8 @@ export default class Searcher {
     let fullQuery = `
       select
         idx.pageid as pageID,
-        idx.numwords as numWords,
-        idx.numheads as numHeads,
+        idx.wordcount as wordCount,
+        idx.headcount as headCount,
         idx.pagerank as pageRank,
         total(fromidx.pagerank) as referentPageRank,
         ${sum} as totalPosition,
@@ -105,33 +105,37 @@ export default class Searcher {
     if (pages.length === 0)
       return;
 
-    let {numIndexed, avgNumWords, avgNumHeads} = this.info;
+    let {indexedCount, avgWordCount, avgHeadCount} = this.info;
 
-    for (let word of words) {
-      word.wordIDF = Math.max(Math.log((numIndexed - word.numPages) / word.numPages), 0);
-      word.headIDF = word.numHeads &&
-        Math.max(Math.log((numIndexed - word.numHeads) / word.numHeads), 0);
+    let idf = count => Math.max(Math.log((indexedCount - count + .5) / (count + .5)), 0);
+
+    for (let [i, word] of words.entries()) {
+      word.wordIDF = idf(word.pageCount);
+      word.headIDF = word.headCount && idf(word.headCount);
+
+      word.wordCountKey = `word${i}Count`;
+      word.headCountKey = `head${i}Count`;
     }
 
     let values = {
       wordBM25: [],
       headBM25: [],
-      numWords: [],
+      wordCount: [],
       totalPosition: [],
       refPageRank: [],
       pageRank: []
     };
 
-    const [k, b] = [1.5, .15];
+    const [k, b] = [1.5, .75];
 
     for (let page of pages) {
-      let gain = 1 - b + b * (page.numWords / avgNumWords);
+      let gain = 1 - b + b * (page.wordCount / avgWordCount);
       page.wordBM25 = words.reduce((acc, w, i) =>
-        acc + w.wordIDF * (k+1) * page['wordFreq'+i] / (page['wordFreq'+i] + k*gain), 0);
+        acc + w.wordIDF * (k+1) * page[w.wordCountKey] / (page[w.wordCountKey] + k*gain), 0);
 
-      gain = 1 - b + b * (page.numHeads / avgNumHeads);
+      gain = 1 - b + b * (page.headCount / avgHeadCount);
       page.headBM25 = words.reduce((acc, w, i) =>
-        acc + w.headIDF * (k+1) * page['headFreq'+i] / (page['headFreq'+i] + k*gain), 0);
+        acc + w.headIDF * (k+1) * page[w.headCountKey] / (page[w.headCountKey] + k*gain), 0);
 
       if (page.wordBM25 > 0)
         values.wordBM25.push(page.wordBM25);
@@ -139,7 +143,7 @@ export default class Searcher {
       if (page.headBM25 > 0)
         values.headBM25.push(page.headBM25);
 
-      values.numWords.push(page.numWords);
+      values.wordCount.push(page.wordCount);
       values.totalPosition.push(page.totalPosition);
 
       if (page.referentPageRank > 0)
@@ -156,7 +160,7 @@ export default class Searcher {
     for (let page of pages) {
       let wrdBM25Score = this.normalize(page.wordBM25, values.wordBM25);
       let hdBM25Score = this.normalize(page.headBM25, values.headBM25);
-      let cntScore = this.normalize(page.numWords, values.numWords);
+      let cntScore = this.normalize(page.wordCount, values.wordCount);
       let posScore = this.normalize(page.totalPosition, values.totalPosition, true);
       let refScore = this.normalize(page.referentPageRank, values.refPageRank);
       let prScore = this.normalize(page.pageRank, values.pageRank);
