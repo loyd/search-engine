@@ -29,7 +29,7 @@ const tables = [
 
   `location(
     wordid    integer not null references word(wordid),
-    pageid    integer not null references page(pageid),
+    pageid    integer not null references indexed(pageid),
     position  integer not null,
     wordcount integer not null,
     headcount integer not null,
@@ -37,12 +37,12 @@ const tables = [
   ) without rowid`,
 
   `link(
-    fromid integer not null references page(pageid),
+    fromid integer not null references indexed(pageid),
     toid   integer not null references page(pageid)
   )`,
 
   `linkword(
-    fromid integer not null references page(pageid),
+    fromid integer not null references indexed(pageid),
     toid   integer not null references page(pageid),
     wordid integer not null references word(wordid)
   )`,
@@ -87,7 +87,10 @@ export default class Indexer {
                                                   headcount = headcount + 1 where wordid = ?`)
     };
 
-    return new Indexer(db);
+    // Who cares?
+    yield db.run('pragma foreign_keys = off');
+    yield db.run('pragma synchronous = off');
+    yield db.run('pragma journal_mode = memory');
   }
 
   *each(cb) {

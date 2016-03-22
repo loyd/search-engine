@@ -14,6 +14,7 @@ export default class PRCalculator extends EventEmitter {
     this.state = null;
     this.guard = co.call(this, function*() {
       this.db = yield sqlite3(dbname);
+      yield this.db.run('pragma temp_store = memory');
     });
   }
 
