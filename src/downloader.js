@@ -183,10 +183,13 @@ export default class Downloader extends EventEmitter {
       let url = `${protocol}://${domain.address}${page.pathname}`;
       let timestamp = Date.now();
       let response = yield* this.download(url, domain.host, headers => this.isAcceptable(headers));
+
+      url = `${protocol}://${domain.host}${page.pathname}`;
       this.emit('downloaded', url);
 
       if (response) {
-        page.url = `${protocol}://${domain.host}${page.pathname}`;
+        page.key = utils.normalizeUrl(url);
+        page.url = url;
         page.body = response.body;
         this.process(page);
       }

@@ -9,7 +9,7 @@ import sqlite3 from 'co-sqlite3';
 const tables = [
   `page(
     pageid integer not null primary key,
-    url    text    not null collate nocase unique
+    key    text    not null unique
   )`,
 
   `word(
@@ -21,6 +21,7 @@ const tables = [
 
   `indexed(
     pageid    integer not null primary key references page(pageid),
+    url       text    not null,
     title     text    not null,
     wordcount integer not null,
     headcount integer not null,
@@ -66,16 +67,17 @@ export default class Indexer {
     yield tables.map(tbl => db.run(`create table if not exists ${tbl}`));
 
     this.sql = yield {
-      insertIndexed: db.prepare(`insert into indexed(pageid, title, wordcount, headcount, pagerank)
-                                 values (?, ?, ?, ?, .15)`),
+      insertIndexed: db.prepare(`insert into
+                                 indexed(pageid, url, title, wordcount, headcount, pagerank)
+                                 values (?, ?, ?, ?, ?, .15)`),
       insertLink: db.prepare('insert into link(fromid, toid) values (?, ?)'),
       insertLinkWord: db.prepare('insert into linkword(fromid, toid, wordid) values (?, ?, ?)'),
       insertLocation: db.prepare(`insert into
                                   location(wordid, pageid, position, wordcount, headcount)
                                   values (?, ?, ?, ?, ?)`),
-      insertPage: db.prepare('insert into page(url) values (?)'),
+      insertPage: db.prepare('insert into page(key) values (?)'),
       insertWord: db.prepare('insert into word(stem, pagecount, headcount) values (?, 0, 0)'),
-      selectPage: db.prepare('select pageid from page where url = ?'),
+      selectPage: db.prepare('select pageid from page where key = ?'),
       selectWord: db.prepare('select wordid from word where stem = ?'),
       updateWord: db.prepare('update word set pagecount = pagecount + 1 where wordid = ?'),
       updateHeadWord: db.prepare(`update word set pagecount = pagecount + 1,
@@ -99,8 +101,9 @@ export default class Indexer {
     yield db.run('begin');
 
     try {
-      page.id = yield* this.takePageID(page.url);
-      yield this.sql.insertIndexed.run(page.id, page.title, page.wordCount, page.headCount);
+      page.id = yield* this.takePageID(page.key);
+      yield this.sql.insertIndexed.run(page.id, page.url, page.title,
+                                       page.wordCount, page.headCount);
     } catch (ex) {
       yield db.run('rollback');
 
@@ -142,8 +145,7 @@ export default class Indexer {
     let guards = [];
 
     for (let link of page.links) if (link.index) {
-      let url = `${link.protocol}//${link.host}${link.pathname}`;
-      let pageID = yield* this.takePageID(url);
+      let pageID = yield* this.takePageID(link.key);
       guards.push(sql.insertLink.run(page.id, pageID));
 
       if (link.stems) {
@@ -156,9 +158,9 @@ export default class Indexer {
     yield guards;
   }
 
-  *takePageID(url) {
-    let row = yield this.sql.selectPage.get(url);
-    return row ? row.pageid : (yield this.sql.insertPage.run(url)).lastID;
+  *takePageID(key) {
+    let row = yield this.sql.selectPage.get(key);
+    return row ? row.pageid : (yield this.sql.insertPage.run(key)).lastID;
   }
 
   *takeWordID(stem) {

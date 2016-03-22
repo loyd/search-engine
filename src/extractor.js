@@ -97,7 +97,7 @@ class InfoCollector {
     return name.length === 2 && name[0] === 'h';
   }
 
-  setup(pageUrl, title, links) {
+  setup(pageKey, pageUrl, title, links) {
     // Nesting <a>, <h*> elements is forbidden in HTML. Ignore it.
     this.linkNesting = 0;
     this.headerNesting = 0;
@@ -109,8 +109,8 @@ class InfoCollector {
 
     this.link = null;
     this.links = new Map;
+    this.pageKey = pageKey;
     this.pageUrl = pageUrl;
-    this.pageKey = utils.normalizeUrl(pageUrl);
 
     for (let link of links)
       this.prepareLink(link);
@@ -140,7 +140,7 @@ class InfoCollector {
     let resolved = urllib.resolve(this.pageUrl, link.href);
     let urlObj = urllib.parse(resolved);
 
-    if (!/^https?:$/.test(urlObj.protocol))
+    if (!/^https?:$/.test(urlObj.protocol) || !urlObj.pathname)
       return;
 
     let key = utils.normalizeUrlObj(urlObj);
@@ -192,7 +192,7 @@ export default class Extractor {
     this.parser.parseComplete(page.body);
 
     let title = entities.decodeHTML(this.handler.getTitle());
-    this.collector.setup(page.url, title, this.handler.links);
+    this.collector.setup(page.key, page.url, title, this.handler.links);
     this.handler.getEvents(this.collector);
 
     page.title = title;
