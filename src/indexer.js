@@ -104,17 +104,6 @@ export default class Indexer {
       page.id = yield* this.takePageID(page.key);
       yield this.sql.insertIndexed.run(page.id, page.url, page.title,
                                        page.wordCount, page.headCount);
-    } catch (ex) {
-      yield db.run('rollback');
-
-      // Ignore duplicates.
-      if (ex.message.indexOf('UNIQUE') === -1)
-        throw ex;
-      else
-        return;
-    }
-
-    try {
       yield [
         this.indexWords(page),
         this.indexLinks(page)
