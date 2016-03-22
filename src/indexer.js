@@ -54,10 +54,6 @@ const tables = [
   )`
 ];
 
-const indices = [
-  'toidwordidx on linkword(toid, wordid)'
-];
-
 export default class Indexer {
   constructor() {
     this.db = null;
@@ -68,7 +64,6 @@ export default class Indexer {
     let db = this.db = yield sqlite3(dbname);
 
     yield tables.map(tbl => db.run(`create table if not exists ${tbl}`));
-    yield indices.map(idx => db.run(`create index if not exists ${idx}`));
 
     this.sql = yield {
       insertIndexed: db.prepare(`insert into indexed(pageid, title, wordcount, headcount, pagerank)

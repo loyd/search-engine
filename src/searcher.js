@@ -91,7 +91,7 @@ export default class Searcher {
 
       from location l0 ${from}
       join indexed idx using (pageid)
-      left join linkword lw on idx.pageid = toid and lw.wordid in (${wordIDs.join(', ')})
+      left join linkword lw on lw.wordid in (${wordIDs.join(', ')}) and idx.pageid = toid
       left join indexed fromidx on fromidx.pageid = fromid
 
       where ${where}

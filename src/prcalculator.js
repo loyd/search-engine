@@ -38,6 +38,9 @@ export default class PRCalculator extends EventEmitter {
       this.changeState('updating info');
       yield this.updateInfo();
 
+      this.changeState('rebuild index');
+      yield this.rebuildIndex();
+
       this.changeState('analyzing tables');
       yield this.analyzeTables();
 
@@ -100,6 +103,13 @@ export default class PRCalculator extends EventEmitter {
     return this.db.exec(`
       delete from info;
       insert into info select count(*), avg(wordcount), avg(headcount) from indexed;
+    `);
+  }
+
+  rebuildIndex() {
+    return this.db.exec(`
+      drop index if exists wordidtoididx;
+      create index wordidtoididx on linkword(wordid, toid);
     `);
   }
 
