@@ -1,4 +1,8 @@
 {
+  "author": "Paul Loyd <pavelko95@gmail.com>",
+  "license": "MIT",
+  "private": true,
+
   "dependencies": {
     "bloomfilter": "0.0.16",
     "co": "^4.6.0",
