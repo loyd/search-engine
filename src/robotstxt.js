@@ -14,15 +14,17 @@ function comparator(a, b) {
 }
 
 export function parse(content) {
+  let start = content.search(reUserAgentAny);
+  if (start === -1)
+    return {rules: [], crawlDelay: NaN};
+
   let rules = [];
   let reRules = [];
 
-  let start = content.search(reUserAgentAny);
-  if (start === -1)
-    return rules;
-
-  let end = content.slice(start + 12).search(reUserAgent);
-  let useful = ~end ? content.slice(start, end) : content.slice(start);
+  let useful = content.slice(start + 13);
+  let end = useful.search(reUserAgent);
+  if (~end)
+    useful = useful.slice(0, end);
 
   let result;
   while (result = reDisallow.exec(useful)) {
@@ -53,13 +55,8 @@ export function parse(content) {
 
 export function isDisallowed(rules, path) {
   for (let rule of rules)
-    if (typeof rule === 'string') {
-      if (path.startsWith(rule))
-        return true;
-    } else {
-      if (rule.test(path))
-        return true;
-    }
+    if (typeof rule === 'string' ? path.startsWith(rule) : rule.test(path))
+      return true;
 
   return false;
 }

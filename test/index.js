@@ -1,3 +1,4 @@
 "use strict";
 
-import './utils.js';
+import './robotstxt';
+import './utils';

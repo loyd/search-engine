@@ -1,10 +1,12 @@
+"use strict";
+
 import assert from 'assert';
 
 import * as utils from '../src/utils';
 
 
 function normalizeUrl(from, to) {
-  assert.equal(utils.normalizeUrl(from, to), to, `${from} -> ${to}`);
+  assert.equal(utils.normalizeUrl(from), to, `${from} -> ${to}`);
 }
 
 
