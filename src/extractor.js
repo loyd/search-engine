@@ -184,7 +184,7 @@ class InfoCollector {
 export default class Extractor {
   constructor(urlFilter, ignoreNofollow=false, linkStemLimit=10) {
     this.handler = new Handler(ignoreNofollow);
-    this.parser = new Parser(this.handler);
+    this.parser = new Parser(this.handler, {recognizeSelfClosing: true});
     this.collector = new InfoCollector(urlFilter, ignoreNofollow, linkStemLimit);
   }
 
