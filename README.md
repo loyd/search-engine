@@ -1,6 +1,7 @@
 # Web crawler and search engine
 
-[Report (ru)](docs/ru/report/index.pdf).
+1. [Report (ru)](docs/ru/report/index.pdf).
+2. [Slides (ru)](docs/ru/slides/index.pdf).
 
 Ranking functions:
 - BM25 (for whole content and headers only)
