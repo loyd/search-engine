@@ -1,4 +1,15 @@
 node_modules/
 build/
+
+# SQLite
 *.db
 *.db-journal
+
+# LaTeX
+*.log
+*.toc
+*.aux
+*.fls
+*.out
+*.bbl
+*.blg
