@@ -117,7 +117,7 @@ export default class Downloader extends EventEmitter {
 
     for (let link of source.links) {
       if (this.knownUrlSet.test(link.key))
-        return false;
+        continue;
 
       let page = {
         pathname: link.pathname,
@@ -157,7 +157,12 @@ export default class Downloader extends EventEmitter {
 
   schedule(n) {
     for (let i = 0; i < n; ++i)
-      co.call(this, this.worker).catch(ex => this.emit('error', ex));
+      co.call(this, function*() {
+        yield* this.worker();
+        //#XXX: workaround for rare halting.
+        if (this.queue.length < this.highWaterMark && !this.domains.isEmpty())
+          this.schedule(1);
+      }).catch(ex => this.emit('error', ex));
   }
 
   *worker() {
