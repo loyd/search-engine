@@ -40,26 +40,7 @@
 
 
 \section{Пользовательский интерфейс}
-\subsection*{Интерфейс командной строки}
-Управление большей частью системы осуществляется через интерфейс командной строки. Входная точка представлена на листинге \ref{lst:cli-h}.
-\begin{lstlisting}[caption=Интерфейс командной строки., label=lst:cli-h]
-Usage: cli <command> ... (see -h)
-
-Commands:
-  crawl     browse WWW and index information
-  pagerank  precalculate pagerank
-  search    request for indexed information
-  server    start the web server
-
-Options:
-  -d, --database  specify path to database           [string] [default: "se.db"]
-  -h, --help      show help                                            [boolean]
-\end{lstlisting}
-
-
 \subsection*{Поисковая страница}
-{\Large ОБНОВИТЬ КАРТИНКИ И ЛИСТИНГИ ПОСЛЕ НАБОРА НОВОЙ БАЗЫ И ПОДБОРА ВЕСОВ}
-
 Поисковая страница позволяет пользователю осуществлять запросы и получать ранжированный набор результатов (рис. \ref{fig:webpage-top}). Для переключения между блоками страниц предусмотрен специальный переключатель (рис. \ref{fig:webpage-bottom}) для запроса дополнительных страниц.
 
 \begin{figure}[h]
@@ -77,6 +58,23 @@ Options:
 \end{figure}
 
 Все поисковые запросы со страницы выполняются без перезагрузки самой страницы.
+
+
+\subsection*{Интерфейс командной строки}
+Управление большей частью системы осуществляется через интерфейс командной строки. Входная точка представлена на листинге \ref{lst:cli-h}.
+\begin{lstlisting}[caption=Интерфейс командной строки., label=lst:cli-h]
+Usage: cli <command> ... (see -h)
+
+Commands:
+  crawl     browse WWW and index information
+  pagerank  precalculate pagerank
+  search    request for indexed information
+  server    start the web server
+
+Options:
+  -d, --database  specify path to database           [string] [default: "se.db"]
+  -h, --help      show help                                            [boolean]
+\end{lstlisting}
 
 
 \subsubsection*{Поисковой робот}
@@ -169,18 +167,18 @@ Options:
 \end{lstlisting}
 
 \begin{lstlisting}[caption=Интерфейс командной строки: поиск., label=lst:cli-search]
-[88] Язык программирования — Википедия | https://ru.wikipedia.org/wiki/Язык...
-[75] Высокоуровневый язык программирования — Википедия | https://ru.wikiped...
-[61] Форт (язык программирования) — Википедия | https://ru.wikipedia.org/wi...
-[59] Программирование — Википедия | https://ru.wikipedia.org/wiki/Программи...
-[58] История языков программирования — Википедия | https://ru.wikipedia.org...
-[58] Объектно-ориентированное программирование — Википедия | https://ru.wik...
-[58] Мультипарадигмальный язык программирования — Википедия | https://ru.wi...
-[58] Мультипарадигмальный язык программирования — Википедия | https://ru.wi...
-[53] Язык ассемблера — Википедия | https://ru.wikipedia.org/wiki/Язык_ассем...
-[50] Парадигма программирования — Википедия | https://ru.wikipedia.org/wiki...
+[77] Python (programming language) - Wikipedia, the free encyclopedia | htt...
+[71] The Python Standard Library | http://docs.python.org/library/index.html
+[69] Python-Dev Info Page | https://mail.python.org/mailman/listinfo/python...
+[69] Sphinx 1.4.3 : Python Package Index | https://pypi.python.org/pypi/Sphinx
+[69] PyPI - the Python Package Index | https://pypi.python.org/pypi
+[66] Languages - Python Wiki | http://wiki.python.org/moin/Languages
+[65] The Julia Language | http://julialang.org/
+[62] The Python Tutorial — Python 3.5.1 documentation | http://docs.python....
+[60] Python Developer’s Guide — Python Developer's Guide | https://docs.pyt...
+[60] BeginnersGuide - Python Wiki | https://wiki.python.org/moin/BeginnersG...
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  About 181 results (0.013 seconds)
+About 1208 results (0.036 seconds)
 \end{lstlisting}
 
 Данный команда позволяет контролировать детальность вывода аргументами \verb|-v| и \verb|-vv| (листинг \ref{lst:cli-search-vv}).
