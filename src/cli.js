@@ -165,7 +165,7 @@ function crawl(argv) {
   }
 
   function onexit() {
-    console.log('\n' + '-'.repeat(process.stdout.columns));
+    console.log('\n' + '~'.repeat(process.stdout.columns));
     console.log('Downloaded: %d', crawler.downloaded);
     console.log('Indexed: %d', crawler.indexed);
     console.log('Spent: %s', spent(start));
@@ -188,7 +188,7 @@ function pagerank(argv) {
   calculator.on('error', ex => console.error(ex.stack));
 
   process.on('exit', _ => {
-    console.log('-'.repeat(process.stdout.columns));
+    console.log('~'.repeat(process.stdout.columns));
     console.log('Spent: %s', spent(start));
   });
 
@@ -242,7 +242,7 @@ function search(argv) {
     if (empty)
       console.log('Ooops! Where is it?');
 
-    console.log('-'.repeat(process.stdout.columns));
+    console.log('~'.repeat(process.stdout.columns));
     console.log('About %s results (%d seconds)', result.total, result.spent / 1000);
   }
 }
